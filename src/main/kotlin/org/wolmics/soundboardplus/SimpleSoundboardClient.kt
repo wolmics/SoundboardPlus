@@ -12,13 +12,14 @@ import net.minecraft.util.Identifier
 import org.wolmics.soundboardplus.config.SoundboardConfig
 import org.wolmics.soundboardplus.gui.SoundboardScreen
 import org.lwjgl.glfw.GLFW
+import org.wolmics.soundboardplus.util.KeyEventBus
 import java.io.File
 
 class SimpleSoundboardClient : ClientModInitializer {
 
     companion object {
 
-        const val MOD_ID = "simplesoundboard"
+        const val MOD_ID = "soundboardplus"
 
         val KEY_CATEGORY: KeyBinding.Category = KeyBinding.Category.create(Identifier.of(MOD_ID, "main"))
 
@@ -69,48 +70,11 @@ class SimpleSoundboardClient : ClientModInitializer {
                 SoundboardAudioSystem.playbackPaused = !SoundboardAudioSystem.playbackPaused
             }
 
-            if (client.currentScreen == null) {
-                handleSoundKeybinds(client)
-            }
+            KeyEventBus.handleSoundKeybinds(client)
         }
 
         ClientLifecycleEvents.CLIENT_STOPPING.register {
             SoundboardConfig.save()
-        }
-    }
-
-    private fun handleSoundKeybinds(client: MinecraftClient) {
-        for ((categoryName, category) in SoundboardConfig.data.categories) {
-            for ((filename, soundData) in category.sounds) {
-                val keyCode = soundData.keybind
-                if (keyCode <= 0 || keyCode == GLFW.GLFW_KEY_ESCAPE) continue
-
-                val isPressed = InputUtil.isKeyPressed(client.window, keyCode)
-                val wasPressed = pressedKeys.contains(keyCode)
-
-                if (isPressed && !wasPressed) {
-                    pressedKeys.add(keyCode)
-
-                    // Reconstruct the correct file path:
-                    // "default" category → root of soundDir
-                    // named categories → subdirectory matching the category name
-                    val file = if (categoryName == "default") {
-                        File(soundDir, filename)
-                    } else {
-                        File(soundDir, "$categoryName/$filename")
-                    }
-
-                    if (file.exists()) {
-                        if (SoundboardAudioSystem.isPlaying(filename)) {
-                            SoundboardAudioSystem.stop(filename)
-                        } else {
-                            SoundboardAudioSystem.playFile(file)
-                        }
-                    }
-                } else if (!isPressed && wasPressed) {
-                    pressedKeys.remove(keyCode)
-                }
-            }
         }
     }
 }

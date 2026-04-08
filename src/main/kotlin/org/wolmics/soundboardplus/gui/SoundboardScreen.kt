@@ -74,7 +74,7 @@ class SoundboardScreen(
     override fun init() {
         val padding = 10
 
-        val titleWidget = TextWidget(Text.literal("Soundboard").formatted(Formatting.BOLD), textRenderer)
+        val titleWidget = TextWidget(Text.literal("Soundboard+").formatted(Formatting.BOLD), textRenderer)
         titleWidget.setPosition(width / 2 - titleWidget.width / 2, 5)
         addDrawableChild(titleWidget)
 
