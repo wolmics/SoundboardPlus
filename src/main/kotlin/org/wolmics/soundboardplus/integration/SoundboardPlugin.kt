@@ -1,12 +1,12 @@
-package org.kvxd.simplesoundboard.integration
+package org.wolmics.soundboardplus.integration
 
 import de.maxhenkel.voicechat.api.VoicechatApi
 import de.maxhenkel.voicechat.api.VoicechatPlugin
 import de.maxhenkel.voicechat.api.events.ClientVoicechatConnectionEvent
 import de.maxhenkel.voicechat.api.events.EventRegistration
 import de.maxhenkel.voicechat.api.events.MergeClientSoundEvent
-import org.kvxd.simplesoundboard.SimpleSoundboardClient
-import org.kvxd.simplesoundboard.SoundboardAudioSystem
+import org.wolmics.soundboardplus.SimpleSoundboardClient
+import org.wolmics.soundboardplus.SoundboardAudioSystem
 
 class SoundboardPlugin : VoicechatPlugin {
 

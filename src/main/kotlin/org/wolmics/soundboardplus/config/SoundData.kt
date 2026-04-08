@@ -1,11 +1,10 @@
-package org.kvxd.simplesoundboard.config
+package org.wolmics.soundboardplus.config
 
 import kotlinx.serialization.Serializable
 
 @Serializable
 data class SoundData(
-    var localVolume: Float = 1.0f,
-    var playerVolume: Float = 1.0f,
+    val category: String = "",
     var favorite: Boolean = false,
     var keybind: Int = -1
 )

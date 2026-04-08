@@ -1,4 +1,4 @@
-package org.kvxd.simplesoundboard.gui
+package org.wolmics.soundboardplus.gui
 
 import net.minecraft.client.MinecraftClient
 import net.minecraft.client.gui.DrawContext

@@ -1,4 +1,4 @@
-package org.kvxd.simplesoundboard
+package org.wolmics.soundboardplus
 
 import de.maxhenkel.voicechat.api.VoicechatApi
 import de.maxhenkel.voicechat.api.VoicechatClientApi
@@ -7,7 +7,8 @@ import de.maxhenkel.voicechat.api.events.ClientVoicechatConnectionEvent
 import de.maxhenkel.voicechat.api.events.MergeClientSoundEvent
 import net.minecraft.client.MinecraftClient
 import net.minecraft.text.Text
-import org.kvxd.simplesoundboard.config.SoundboardConfig
+import org.wolmics.soundboardplus.config.SoundboardConfig
+import org.wolmics.soundboardplus.util.ToastManager
 import java.io.BufferedInputStream
 import java.io.File
 import java.nio.file.Files
@@ -24,6 +25,11 @@ object SoundboardAudioSystem {
 
     private val activeSounds = ConcurrentLinkedQueue<PlayingSound>()
     private const val FRAME_SIZE = 960
+
+    var playerVolume: Float = SoundboardConfig.data.playerVolume
+    var localVolume: Float = SoundboardConfig.data.localVolume
+
+    var playbackPaused: Boolean = false
 
     fun initialize(api: VoicechatApi) {
         this.api = api
@@ -47,15 +53,29 @@ object SoundboardAudioSystem {
         }
     }
 
+     /** 0.0–1.0 progress for [name], or null if not playing. */
+     fun getProgress(name: String): Double? =
+         activeSounds.find { it.name == name && !it.isFinished }?.progress
+
+     /** Total sample count for [name], or null if not playing. */
+     fun getTotalSamples(name: String): Int? =
+         activeSounds.find { it.name == name && !it.isFinished }?.totalSamples
+
+     /** Seek [name] to [fraction] (0.0–1.0). No-op if not playing. */
+     fun seekTo(name: String, fraction: Double) {
+             activeSounds.find { it.name == name && !it.isFinished }?.seekTo(fraction)
+         }
+
+     /** Returns the name of the only active sound, or null if 0 or 2+ are playing. */
+     fun getSinglePlayingName(): String? =
+         activeSounds.filter { !it.isFinished }
+             .takeIf { it.size == 1 }
+             ?.first()?.name
+
     fun onMergeSound(event: MergeClientSoundEvent) {
         val api = clientApi ?: return
 
-        if (api.isDisabled || (api.isMuted && !SoundboardConfig.data.playWhileMuted)) {
-            if (activeSounds.isNotEmpty()) activeSounds.clear()
-            return
-        }
-
-        if (activeSounds.isEmpty()) return
+        if (!playbackActive()) return
 
         val mixedAudioPlayer = ShortArray(FRAME_SIZE)
         val mixedAudioLocal = ShortArray(FRAME_SIZE)
@@ -78,10 +98,10 @@ object SoundboardAudioSystem {
             for (i in 0 until samplesToRead) {
                 val rawSample = sound.readNext()
 
-                mixSample(mixedAudioPlayer, i, rawSample, sound.playerVolume)
+                mixSample(mixedAudioPlayer, i, rawSample, playerVolume)
 
                 if (playLocally) {
-                    mixSample(mixedAudioLocal, i, rawSample, sound.localVolume)
+                    mixSample(mixedAudioLocal, i, rawSample, localVolume)
                 }
             }
         }
@@ -95,6 +115,20 @@ object SoundboardAudioSystem {
         }
     }
 
+    fun playbackActive(): Boolean {
+        val api = clientApi ?: return false
+        if (api.isDisabled || (api.isMuted && !SoundboardConfig.data.playWhileMuted)) {
+            if (activeSounds.isNotEmpty()) activeSounds.clear()
+            return false
+        }
+
+        if (activeSounds.isEmpty() || playbackPaused) {
+            if (activeSounds.isEmpty() && playbackPaused) playbackPaused = false
+            return false
+        }
+        return true
+    }
+
     private fun mixSample(buffer: ShortArray, index: Int, sample: Short, volume: Float) {
         val weightedSample = (sample * volume).toInt()
         var result = buffer[index] + weightedSample
@@ -105,28 +139,30 @@ object SoundboardAudioSystem {
         buffer[index] = result.toShort()
     }
 
-    fun playFile(file: File, localVol: Float, playerVol: Float) {
+    fun playFile(file: File) {
         val client = MinecraftClient.getInstance()
         val api = clientApi
 
         if (api == null) {
-            client.player?.sendMessage(Text.of("§cVoice chat not connected!"), true)
+            ToastManager.createToast(Text.of("§cVoice chat not connected!"), 1500)
             return
         }
 
         if (api.isMuted && !SoundboardConfig.data.playWhileMuted) {
-            client.player?.sendMessage(Text.of("§cCannot play soundboard while muted!"), true)
+            ToastManager.createToast(Text.of("§cCannot play soundboard while muted!"), 1500)
             return
         }
+
+        if (SoundboardConfig.data.playOnlyOne && activeSounds.isNotEmpty()) activeSounds.clear()
 
         CompletableFuture.runAsync {
             try {
                 val pcmData = decodeMp3(file)
                 if (pcmData != null && pcmData.isNotEmpty()) {
-                    activeSounds.add(PlayingSound(file.name, pcmData, localVol, playerVol))
+                    activeSounds.add(PlayingSound(file.name, pcmData))
                 } else {
                     client.execute {
-                        client.player?.sendMessage(Text.of("§cFailed to decode: ${file.name}"), false)
+                        ToastManager.createToast(Text.of("§cFailed to decode: ${file.name}"), 2500)
                     }
                 }
             } catch (e: Exception) {
@@ -143,13 +179,9 @@ object SoundboardAudioSystem {
         activeSounds.removeIf { it.name == file }
     }
 
-    fun setVolume(file: String, localVol: Float, playerVol: Float) {
-        for (sound in activeSounds) {
-            if (sound.name == file) {
-                sound.localVolume = localVol
-                sound.playerVolume = playerVol
-            }
-        }
+    fun setVolume(localVol: Float, playerVol: Float) {
+        localVolume = localVol
+        playerVolume = playerVol
     }
 
     fun stopAll() {
@@ -184,18 +216,24 @@ object SoundboardAudioSystem {
 
     private class PlayingSound(
         val name: String,
-        private val samples: ShortArray,
-        @Volatile var localVolume: Float,
-        @Volatile var playerVolume: Float
+        private val samples: ShortArray
     ) {
 
         private var cursor = 0
+
+        val totalSamples: Int get() = samples.size
+        val progress: Double get() = if (samples.isEmpty()) 0.0 else cursor.toDouble() / samples.size
+
 
         val isFinished: Boolean
             get() = cursor >= samples.size
 
         val remaining: Int
             get() = samples.size - cursor
+
+        fun seekTo(fraction: Double) {
+            cursor = (fraction * samples.size).toInt().coerceIn(0, samples.size)
+        }
 
         fun readNext(): Short {
             return if (cursor < samples.size) samples[cursor++] else 0
