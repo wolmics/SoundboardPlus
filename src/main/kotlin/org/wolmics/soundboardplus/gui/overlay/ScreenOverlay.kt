@@ -75,17 +75,16 @@ abstract class ScreenOverlay(
         val x2 = x + overlayWidth
         val y2 = y + overlayHeight
 
-        // Outer black outline (matches the dark edge in your screenshot)
+        // Outer black outline
         context.fill(x - 2, y - 2, x2 + 2, y2 + 2, 0xFF000000.toInt())
 
-        // Slightly lighter dark-gray inner border (the subtle 1px inset edge)
+        // Slightly lighter dark-gray inner border
         context.fill(x - 1, y - 1, x2 + 1, y2 + 1, 0xFF222222.toInt())
 
         // Main gray background — same tone as vanilla Minecraft screens
         context.fill(x, y, x2, y2, 0xFF3F3F3F.toInt())
 
         // Subtle bevel: lighter on top/left, darker on bottom/right
-        // This gives the slight 3D panel depth visible in the screenshot
         context.fill(x,      y,      x2,     y + 1,  0xFF5A5A5A.toInt())  // top highlight
         context.fill(x,      y,      x + 1,  y2,     0xFF5A5A5A.toInt())  // left highlight
         context.fill(x, y2 - 1, x2, y2, 0xFF262626.toInt())  // bottom shadow

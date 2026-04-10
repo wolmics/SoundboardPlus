@@ -53,27 +53,34 @@ object SoundboardAudioSystem {
         }
     }
 
-     /** 0.0–1.0 progress for [name], or null if not playing. */
-     fun getProgress(name: String): Double? =
-         activeSounds.find { it.name == name && !it.isFinished }?.progress
+    // 0.0–1.0 progress for [name], or null if not playing
+    fun getProgress(name: String): Double? =
+        activeSounds.find { it.name == name && it.playbackState == PlaybackState.PLAYING }?.progress
 
-     /** Total sample count for [name], or null if not playing. */
-     fun getTotalSamples(name: String): Int? =
-         activeSounds.find { it.name == name && !it.isFinished }?.totalSamples
+    // Total sample count for [name], or null if not playing
+    fun getTotalSamples(name: String): Int? =
+        activeSounds.find { it.name == name && it.playbackState == PlaybackState.PLAYING }?.totalSamples
 
-     /** Seek [name] to [fraction] (0.0–1.0). No-op if not playing. */
-     fun seekTo(name: String, fraction: Double) {
-             activeSounds.find { it.name == name && !it.isFinished }?.seekTo(fraction)
-         }
+    // Seek [name] to [fraction] (0.0–1.0). No-op if not playing
+    fun seekTo(name: String, fraction: Double) {
+        activeSounds.find { it.name == name && it.playbackState == PlaybackState.PLAYING }?.seekTo(fraction)
+    }
 
-     /** Returns the name of the only active sound, or null if 0 or 2+ are playing. */
-     fun getSinglePlayingName(): String? =
-         activeSounds.filter { !it.isFinished }
-             .takeIf { it.size == 1 }
-             ?.first()?.name
+    // Returns the name of the only active sound, or null if 0 or 2+ are playing
+    fun getSinglePlayingName(): String? =
+        activeSounds.filter { it.playbackState == PlaybackState.PLAYING }
+            .takeIf { it.size == 1 }
+            ?.first()?.name
+
+    fun getSoundRepeat(name: String): Boolean? =
+        activeSounds.find { it.name == name }?.repeat
+
+    fun setSoundRepeat(name: String, repeat: Boolean) {
+        activeSounds.find { it.name == name }?.repeat = repeat
+    }
 
     fun onMergeSound(event: MergeClientSoundEvent) {
-        val api = clientApi ?: return
+        clientApi ?: return
 
         if (!playbackActive()) return
 
@@ -86,9 +93,15 @@ object SoundboardAudioSystem {
         while (iterator.hasNext()) {
             val sound = iterator.next()
 
+            // Still decoding — skip this frame but keep it in the queue
+            if (sound.playbackState == PlaybackState.LOADING) continue
+
             if (sound.isFinished) {
-                iterator.remove()
-                continue
+                if (!sound.repeat) {
+                    iterator.remove()
+                    continue
+                }
+                sound.repeatSound()
             }
 
             hasAudio = true
@@ -155,24 +168,30 @@ object SoundboardAudioSystem {
 
         if (SoundboardConfig.data.playOnlyOne && activeSounds.isNotEmpty()) activeSounds.clear()
 
+        // Add the sound immediately in LOADING state so the UI can reflect it
+        val playingSound = PlayingSound(file.name)
+        activeSounds.add(playingSound)
+
         CompletableFuture.runAsync {
             try {
                 val pcmData = decodeMp3(file)
                 if (pcmData != null && pcmData.isNotEmpty()) {
-                    activeSounds.add(PlayingSound(file.name, pcmData))
+                    playingSound.setSamples(pcmData) // transitions to PLAYING internally
                 } else {
+                    activeSounds.remove(playingSound)
                     client.execute {
                         ToastManager.createToast(Text.of("§cFailed to decode: ${file.name}"), 2500)
                     }
                 }
             } catch (e: Exception) {
+                activeSounds.remove(playingSound)
                 e.printStackTrace()
             }
         }
     }
 
     fun isPlaying(file: String): Boolean {
-        return activeSounds.any { it.name == file && !it.isFinished }
+        return activeSounds.any { it.name == file && it.playbackState != PlaybackState.STOPPED }
     }
 
     fun stop(file: String) {
@@ -214,19 +233,28 @@ object SoundboardAudioSystem {
         return mono
     }
 
-    private class PlayingSound(
-        val name: String,
-        private val samples: ShortArray
-    ) {
+    private class PlayingSound(val name: String) {
 
+        private var samples: ShortArray = ShortArray(0)
         private var cursor = 0
+        var repeat = false
+
+        @Volatile
+        var playbackState: PlaybackState = PlaybackState.LOADING
+            private set
+
+        // Called from the decode thread once samples are ready
+        fun setSamples(data: ShortArray) {
+            samples = data
+            playbackState = PlaybackState.PLAYING
+        }
 
         val totalSamples: Int get() = samples.size
+
         val progress: Double get() = if (samples.isEmpty()) 0.0 else cursor.toDouble() / samples.size
 
-
         val isFinished: Boolean
-            get() = cursor >= samples.size
+            get() = playbackState == PlaybackState.PLAYING && cursor >= samples.size
 
         val remaining: Int
             get() = samples.size - cursor
@@ -238,5 +266,15 @@ object SoundboardAudioSystem {
         fun readNext(): Short {
             return if (cursor < samples.size) samples[cursor++] else 0
         }
+
+        fun repeatSound() {
+            cursor = 0
+        }
     }
+}
+
+enum class PlaybackState {
+    LOADING,
+    PLAYING,
+    STOPPED
 }

@@ -39,12 +39,16 @@ class SoundboardScreen(
 
     private lateinit var queryField: TextFieldWidget
     private lateinit var resultsList: ResultListWidget
+
     private lateinit var detailLocalSlider: VolumeSlider
     private lateinit var detailPlayerSlider: VolumeSlider
     private lateinit var pauseButton: ButtonWidget
     private lateinit var detailBindBtn: ButtonWidget
     private lateinit var detailLabel: TextWidget
     private lateinit var progressBar: ProgressBar
+
+    private lateinit var soundDeleteButton: ButtonWidget
+    private lateinit var soundLoopButton: ButtonWidget
 
     private val overlayCtx get() = OverlayContext(textRenderer, width, height)
     private lateinit var deleteConfirm: CategoryConfigOverlay
@@ -129,41 +133,59 @@ class SoundboardScreen(
     }
 
     private fun setupDetailButtons(padding: Int) {
-        val detailsY = height - bottomPaneHeight + 5
+        val detailsY = height - bottomPaneHeight + 20
 
         detailLabel = TextWidget(Text.literal("- No sound Playing -"), textRenderer)
-        detailLabel.setPosition(width / 2 - detailLabel.width / 2, detailsY)
+        detailLabel.setPosition(width / 2 - detailLabel.width / 2, detailsY - 15)
         addDrawableChild(detailLabel)
 
         pauseButton = ButtonWidget.builder(Text.literal("⏵")) {
             SoundboardAudioSystem.playbackPaused = !SoundboardAudioSystem.playbackPaused
-        }.size(80, 20).position(width / 2 - 40, detailsY + 15).build()
+        }.size(80, 20).position(width / 2 - 40, detailsY).build()
         addDrawableChild(pauseButton)
 
         detailLocalSlider = VolumeSlider(
-            width / 2 - 160, detailsY + 15, 100, 20,
+            width / 2 - 160, detailsY, 100, 20,
             Text.literal("Local"), SoundboardAudioSystem.localVolume
         ) { updateSelectedVolume(local = it) }
         addDrawableChild(detailLocalSlider)
 
         detailPlayerSlider = VolumeSlider(
-            width / 2 + 60, detailsY + 15, 100, 20,
+            width / 2 + 60, detailsY, 100, 20,
             Text.literal("Player"), SoundboardAudioSystem.playerVolume
         ) { updateSelectedVolume(player = it) }
         addDrawableChild(detailPlayerSlider)
+
+        val soundSettingsStart = 10
+        soundDeleteButton = ButtonWidget.builder(Text.literal("\uD83D\uDDD1").formatted(Formatting.RED)) {
+            if (selectedFile != null) {
+                SoundboardConfig.deleteSound(selectedFile!!)
+                SoundboardAudioSystem.stop(selectedFile!!.name)
+                scanSounds()
+            }
+        }.size(20, 20).position(soundSettingsStart, detailsY).build()
+        soundDeleteButton.active = false
+        addDrawableChild(soundDeleteButton)
+
+        soundLoopButton = ButtonWidget.builder(Text.literal("\uD83D\uDD03").formatted(Formatting.DARK_GRAY)) {
+            toggleSoundLoop()
+            updateSoundLoopButtonText()
+        }.size(20, 20).position(soundSettingsStart + 25, detailsY).build()
+        soundLoopButton.active = false
+        addDrawableChild(soundLoopButton)
 
         detailBindBtn = ButtonWidget.builder(Text.literal("Keybind: None")) {
             if (selectedFile != null) {
                 isBinding = true
                 it.message = Text.literal("> Press Key <").formatted(Formatting.YELLOW)
             }
-        }.size(80, 20).position(width - 110, detailsY + 15).build()
+        }.size(80, 20).position(width - 110, detailsY).build()
         detailBindBtn.active = false
         addDrawableChild(detailBindBtn)
 
         progressBar = ProgressBar(
             x      = padding,
-            y      = detailsY + 40,
+            y      = detailsY + 25,
             width  = width - 2 * padding,
             height = 14,
             getSelectedFile = { selectedFile },
@@ -251,13 +273,36 @@ class SoundboardScreen(
         isBinding = false
 
         if (file == null) {
+            soundDeleteButton.active = false
+            soundLoopButton.active = false
+
             detailBindBtn.active = false
             detailBindBtn.message = Text.literal("Keybind: -")
         } else {
             val data = SoundboardConfig[file.name]
             detailBindBtn.active = true
+            soundDeleteButton.active = true
+
+
+            updateSoundLoopButtonText()
             updateBindButtonText(data.keybind)
         }
+    }
+
+    private fun toggleSoundLoop() {
+        if (selectedFile == null || selectedFile!!.name == null) return
+        val enabled: Boolean = SoundboardAudioSystem.getSoundRepeat(selectedFile!!.name) ?: return
+
+        SoundboardAudioSystem.setSoundRepeat(selectedFile!!.name, !enabled)
+    }
+
+    private fun updateSoundLoopButtonText() {
+        if (selectedFile == null || selectedFile!!.name == null) return
+        val enabled: Boolean? = SoundboardAudioSystem.getSoundRepeat(selectedFile!!.name)
+
+        soundLoopButton.message = Text.literal("\uD83D\uDD03")
+            .formatted(if (enabled == true) Formatting.GREEN else Formatting.GRAY)
+        soundLoopButton.active = enabled != null
     }
 
     private fun updateSelectedVolume(local: Float? = null, player: Float? = null) {
@@ -584,9 +629,9 @@ class SoundboardScreen(
                 }.size(20, 20).build()
 
                 playBtn = ButtonWidget.builder(Text.literal("Play")) {
-                    selectedFile = file
                     if (SoundboardAudioSystem.isPlaying(file.name)) SoundboardAudioSystem.stop(file.name)
                     else SoundboardAudioSystem.playFile(file)
+                    selectSound(file)
                 }.size(40, 20).build()
 
                 elements += favBtn; elements += playBtn

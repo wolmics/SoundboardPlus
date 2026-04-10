@@ -15,6 +15,7 @@
   },
   "license": "GPL-3.0",
   "environment": "client",
+  "icon": "assets/soundboardplus/icon.png",
   "entrypoints": {
     "client": [
       "org.wolmics.soundboardplus.SimpleSoundboardClient"
