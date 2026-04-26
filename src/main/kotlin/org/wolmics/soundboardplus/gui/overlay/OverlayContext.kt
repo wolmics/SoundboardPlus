@@ -1,9 +1,9 @@
 package org.wolmics.soundboardplus.gui.overlay
 
-import net.minecraft.client.font.TextRenderer
+import net.minecraft.client.gui.Font
 
 data class OverlayContext(
-    val textRenderer: TextRenderer,
+    val font: Font,
     val screenWidth: Int,
     val screenHeight: Int
 )

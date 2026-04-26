@@ -1,7 +1,7 @@
 package org.wolmics.soundboardplus.util
 
-import net.minecraft.client.MinecraftClient
-import net.minecraft.client.util.InputUtil
+import com.mojang.blaze3d.platform.InputConstants
+import net.minecraft.client.Minecraft
 import org.lwjgl.glfw.GLFW
 import org.wolmics.soundboardplus.SimpleSoundboardClient.Companion.soundDir
 import org.wolmics.soundboardplus.SoundboardAudioSystem
@@ -14,8 +14,8 @@ import kotlin.collections.iterator
 object KeyEventBus {
     private val pressedKeys = mutableSetOf<Int>()
 
-    fun handleSoundKeybinds(client: MinecraftClient) {
-        if (client.currentScreen != null) return
+    fun handleSoundKeybinds(client: Minecraft) {
+        if (client.screen != null) return
 
         val snapshot = pressedKeys.toHashSet()
 
@@ -24,8 +24,8 @@ object KeyEventBus {
                 val keyCode = soundData.keybind
                 if (keyCode <= 0 || keyCode == GLFW.GLFW_KEY_ESCAPE) continue
 
-                val isPressed = InputUtil.isKeyPressed(client.window, keyCode)
-                val wasPressed = snapshot.contains(keyCode) // use snapshot, not live set
+                val isPressed = InputConstants.isKeyDown(client.window, keyCode)
+                val wasPressed = snapshot.contains(keyCode)
 
                 if (isPressed && !wasPressed) {
                     pressedKeys.add(keyCode)

@@ -1,8 +1,8 @@
 package org.wolmics.soundboardplus
 
-import net.minecraft.client.toast.TutorialToast
-import net.minecraft.text.Text
-import net.minecraft.util.Formatting
+import net.minecraft.ChatFormatting
+import net.minecraft.client.gui.components.toasts.TutorialToast
+import net.minecraft.network.chat.Component
 import net.minecraft.util.Util
 import org.wolmics.soundboardplus.util.ToastManager
 import java.awt.Color
@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
 
 class YtDlpManager {
 
-    private val isWindows = Util.getOperatingSystem().getName().contains("windows", ignoreCase = true)
+    private val isWindows = Util.getPlatform().name.contains("windows", ignoreCase = true)
     private val binaryName = if (isWindows) "yt-dlp.exe" else "yt-dlp"
     private val downloadUrl = if (isWindows)
         "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
@@ -54,13 +54,13 @@ class YtDlpManager {
         if (bin.exists() && bin.canExecute()) return true
 
         return try {
-            ToastManager.changeToastText(toast, Text.literal("Downloading yt-dlp..."))
+            ToastManager.changeToastText(toast, Component.literal("Downloading yt-dlp..."))
 
             downloadBinary(downloadUrl, bin)
             bin.setExecutable(true, false)
             true
         } catch (t: Throwable) {
-            ToastManager.changeToastText(toast, Text.literal("Failed to download yt-dlp.").withColor(0xFFFF0000.toInt()))
+            ToastManager.changeToastText(toast, Component.literal("Failed to download yt-dlp.").withColor(0xFFFF0000.toInt()))
             t.printStackTrace()
             false
         }
@@ -72,7 +72,7 @@ class YtDlpManager {
         if (bin.exists() && bin.canExecute()) return true
 
         return try {
-            ToastManager.changeToastText(toast, Text.literal("Downloading FFmpeg..."))
+            ToastManager.changeToastText(toast, Component.literal("Downloading FFmpeg..."))
             val archiveName = if (isWindows) "ffmpeg.zip" else "ffmpeg.tar.xz"
             val archiveFile = File(SimpleSoundboardClient.modDependencyDir, archiveName)
             downloadBinary(ffmpegDownloadUrl, archiveFile)
@@ -87,7 +87,7 @@ class YtDlpManager {
             bin.setExecutable(true, false)
             true
         } catch (t: Throwable) {
-            ToastManager.changeToastText(toast, Text.literal("Failed to download FFmpeg.").withColor(0xFFFF0000.toInt()))
+            ToastManager.changeToastText(toast, Component.literal("Failed to download FFmpeg.").withColor(0xFFFF0000.toInt()))
             t.printStackTrace()
             false
         }
@@ -163,7 +163,7 @@ class YtDlpManager {
     fun downloadUrlIntoSoundDir(url: String, category: String?): Pair<Boolean, String> {
         if (url.isBlank()) return failure("message.simplesoundboard.empty_url")
 
-        toast = ToastManager.createProgressToast(Text.literal("Preparing Download..."))
+        toast = ToastManager.createProgressToast(Component.literal("Preparing Download..."))
 
         if (!ensureBinariesPresent()) return failure("message.simplesoundboard.binaries_missing")
 
@@ -178,7 +178,7 @@ class YtDlpManager {
     }
 
     private fun startDownloadProcess(url: String, category: String?): Process {
-        toast.setProgress(0.20f)
+        toast.updateProgress(0.20f)
 
         val soundDir = SimpleSoundboardClient.soundDir.also { if (!it.exists()) it.mkdirs() }
 
@@ -204,14 +204,14 @@ class YtDlpManager {
     }
 
     private fun streamProcessOutput(proc: Process) {
-        ToastManager.changeToastText(toast, Text.literal("Downloading..."))
+        ToastManager.changeToastText(toast, Component.literal("Downloading..."))
 
         BufferedReader(InputStreamReader(proc.inputStream)).use { reader ->
             reader.forEachLine { line ->
                 when {
                     line.startsWith("[download]") -> handleDownloadLine(line)
                     line.startsWith("[ExtractAudio]") ->
-                        ToastManager.changeToastText(toast, Text.literal("Converting to mp3..."))
+                        ToastManager.changeToastText(toast, Component.literal("Converting to mp3..."))
                 }
                 println(line)
             }
@@ -226,7 +226,7 @@ class YtDlpManager {
             ?.div(100f)
             ?: return
 
-        if (percent > 0.20f) toast.setProgress(percent)
+        if (percent > 0.20f) toast.updateProgress(percent)
     }
 
     private fun awaitProcess(proc: Process): Pair<Boolean, String> {
@@ -240,12 +240,12 @@ class YtDlpManager {
         ToastManager.hideTutorialToastIn(toast, 2000L)
 
         return if (proc.exitValue() == 0) {
-            ToastManager.changeToastText(toast, Text.literal("Download Complete!")
-                .formatted(Formatting.BOLD).withColor(Color(0, 210, 0).rgb))
+            ToastManager.changeToastText(toast, Component.literal("Download Complete!")
+                .withStyle(ChatFormatting.BOLD).withColor(Color(0, 210, 0).rgb))
             success("message.simplesoundboard.download_completed")
         } else {
-            ToastManager.changeToastText(toast, Text.literal("Error while downloading!")
-                .formatted(Formatting.RED))
+            ToastManager.changeToastText(toast, Component.literal("Error while downloading!")
+                .withStyle(ChatFormatting.RED))
             failure("message.simplesoundboard.youtube.exit_code")
         }
     }

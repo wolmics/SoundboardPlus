@@ -1,20 +1,18 @@
 package org.wolmics.soundboardplus.gui
 
-import net.minecraft.client.MinecraftClient
-import net.minecraft.client.gui.Click
-import net.minecraft.client.gui.DrawContext
-import net.minecraft.client.gui.Element
-import net.minecraft.client.gui.Selectable
-import net.minecraft.client.gui.screen.Screen
-import net.minecraft.client.gui.widget.ButtonWidget
-import net.minecraft.client.gui.widget.ElementListWidget
-import net.minecraft.client.gui.widget.TextFieldWidget
-import net.minecraft.client.gui.widget.TextWidget
-import net.minecraft.client.input.CharInput
-import net.minecraft.client.input.KeyInput
-import net.minecraft.client.util.InputUtil
-import net.minecraft.text.Text
-import net.minecraft.util.Formatting
+import net.minecraft.ChatFormatting
+import net.minecraft.client.Minecraft
+import net.minecraft.client.gui.GuiGraphicsExtractor
+import net.minecraft.client.gui.screens.Screen
+import net.minecraft.client.gui.components.Button
+import net.minecraft.client.gui.components.AbstractSelectionList
+import net.minecraft.client.gui.components.EditBox
+import net.minecraft.client.gui.components.StringWidget
+import net.minecraft.client.input.CharacterEvent
+import net.minecraft.client.input.KeyEvent
+import net.minecraft.client.input.MouseButtonEvent
+import net.minecraft.network.chat.Component
+import net.minecraft.client.gui.narration.NarrationElementOutput
 import org.wolmics.soundboardplus.SimpleSoundboardClient
 import org.wolmics.soundboardplus.SoundboardAudioSystem
 import org.wolmics.soundboardplus.config.SoundboardConfig
@@ -28,29 +26,29 @@ import java.io.File
 
 class SoundboardScreen(
     private val parent: Screen? = null
-) : Screen(Text.literal("Soundboard")) {
+) : Screen(Component.literal("Soundboard")) {
 
-    private val mc = MinecraftClient.getInstance()
+    private val mc = Minecraft.getInstance()
 
     private val bottomPaneHeight = if (SoundboardConfig.data.showProgressBar) 70 else 50
     private val headerHeight = 70
     private val tabBarY = 46
     private val tabBarH = 18
 
-    private lateinit var queryField: TextFieldWidget
+    private lateinit var queryField: EditBox
     private lateinit var resultsList: ResultListWidget
 
     private lateinit var detailLocalSlider: VolumeSlider
     private lateinit var detailPlayerSlider: VolumeSlider
-    private lateinit var pauseButton: ButtonWidget
-    private lateinit var detailBindBtn: ButtonWidget
-    private lateinit var detailLabel: TextWidget
+    private lateinit var pauseButton: Button
+    private lateinit var detailBindBtn: Button
+    private lateinit var detailLabel: StringWidget
     private lateinit var progressBar: ProgressBar
 
-    private lateinit var soundDeleteButton: ButtonWidget
-    private lateinit var soundLoopButton: ButtonWidget
+    private lateinit var soundDeleteButton: Button
+    private lateinit var soundLoopButton: Button
 
-    private val overlayCtx get() = OverlayContext(textRenderer, width, height)
+    private val overlayCtx get() = OverlayContext(font, width, height)
     private lateinit var deleteConfirm: CategoryConfigOverlay
     private lateinit var downloadOverlay: YtDlpOverlay
 
@@ -78,22 +76,24 @@ class SoundboardScreen(
     override fun init() {
         val padding = 10
 
-        val titleWidget = TextWidget(Text.literal("Soundboard+").formatted(Formatting.BOLD), textRenderer)
+        val titleWidget = StringWidget(Component.literal("Soundboard+").withStyle(ChatFormatting.BOLD), font)
+        Component.literal("_")
+
         titleWidget.setPosition(width / 2 - titleWidget.width / 2, 5)
-        addDrawableChild(titleWidget)
+        addRenderableWidget(titleWidget)
 
         val btnAreaWidth = 5 + 65 + 5 + 75 + 11
         val searchWidth = width - padding - btnAreaWidth
-        queryField = TextFieldWidget(textRenderer, padding, 20, searchWidth, 20, Text.literal("Search"))
-        queryField.setChangedListener { scanSounds() }
-        addDrawableChild(queryField)
+        queryField = EditBox(font, padding, 20, searchWidth, 20, Component.literal("Search"))
+        queryField.setResponder { scanSounds() }
+        addRenderableWidget(queryField)
 
         setupTopButtons()
         setupDetailButtons(padding)
 
         deleteConfirm = CategoryConfigOverlay(
             overlayCtx,
-            title = Text.literal("Delete this sound?"),
+            title = Component.literal("Delete this sound?"),
             onConfirm = { categoryName ->
                 SoundboardConfig.createNewCategory(categoryName)
                 scanSounds()
@@ -101,14 +101,14 @@ class SoundboardScreen(
         )
 
         downloadOverlay = YtDlpOverlay(
-            overlayCtx, title = Text.literal("Download Sounds"),
+            overlayCtx, title = Component.literal("Download Sounds"),
         )
 
         val listTop = headerHeight + 2
         val listBottom = height - bottomPaneHeight
         resultsList = ResultListWidget(mc, width - 2 * padding, listBottom - listTop, listTop, 22)
         resultsList.setX(padding)
-        addDrawableChild(resultsList)
+        addRenderableWidget(resultsList)
 
         if (SoundboardSession.getSelectedCategory() != null) {
             selectedCategory = SoundboardSession.getSelectedCategory()
@@ -120,68 +120,68 @@ class SoundboardScreen(
 
     private fun setupTopButtons() {
         val rightEdge = width - 10
-        addDrawableChild(
-            ButtonWidget.builder(Text.literal("Download")) {
+        addRenderableWidget(
+            Button.builder(Component.literal("Download")) {
                 downloadOverlay.setCategory(selectedCategory)
                 downloadOverlay.show() 
-            }.size(75, 20).position(rightEdge - 75, 20).build()
+            }.size(75, 20).pos(rightEdge - 75, 20).build()
         )
-        addDrawableChild(
-            ButtonWidget.builder(Text.literal("Config")) { mc.setScreen(SoundboardConfigScreen(this)) }
-                .size(65, 20).position(rightEdge - 75 - 5 - 65, 20).build()
+        addRenderableWidget(
+            Button.builder(Component.literal("Config")) { mc.setScreen(SoundboardConfigScreen(this)) }
+                .size(65, 20).pos(rightEdge - 75 - 5 - 65, 20).build()
         )
     }
 
     private fun setupDetailButtons(padding: Int) {
         val detailsY = height - bottomPaneHeight + 20
 
-        detailLabel = TextWidget(Text.literal("- No sound Playing -"), textRenderer)
+        detailLabel = StringWidget(Component.literal("- No sound Playing -"), font)
         detailLabel.setPosition(width / 2 - detailLabel.width / 2, detailsY - 15)
-        addDrawableChild(detailLabel)
+        addRenderableWidget(detailLabel)
 
-        pauseButton = ButtonWidget.builder(Text.literal("⏵")) {
+        pauseButton = Button.builder(Component.literal("⏵")) {
             SoundboardAudioSystem.playbackPaused = !SoundboardAudioSystem.playbackPaused
-        }.size(80, 20).position(width / 2 - 40, detailsY).build()
-        addDrawableChild(pauseButton)
+        }.size(80, 20).pos(width / 2 - 40, detailsY).build()
+        addRenderableWidget(pauseButton)
 
         detailLocalSlider = VolumeSlider(
             width / 2 - 160, detailsY, 100, 20,
-            Text.literal("Local"), SoundboardAudioSystem.localVolume
+            Component.literal("Local"), SoundboardAudioSystem.localVolume
         ) { updateSelectedVolume(local = it) }
-        addDrawableChild(detailLocalSlider)
+        addRenderableWidget(detailLocalSlider)
 
         detailPlayerSlider = VolumeSlider(
             width / 2 + 60, detailsY, 100, 20,
-            Text.literal("Player"), SoundboardAudioSystem.playerVolume
+            Component.literal("Player"), SoundboardAudioSystem.playerVolume
         ) { updateSelectedVolume(player = it) }
-        addDrawableChild(detailPlayerSlider)
+        addRenderableWidget(detailPlayerSlider)
 
         val soundSettingsStart = 10
-        soundDeleteButton = ButtonWidget.builder(Text.literal("\uD83D\uDDD1").formatted(Formatting.RED)) {
+        soundDeleteButton = Button.builder(Component.literal("\uD83D\uDDD1").withStyle(ChatFormatting.RED)) {
             if (selectedFile != null) {
                 SoundboardConfig.deleteSound(selectedFile!!)
                 SoundboardAudioSystem.stop(selectedFile!!.name)
                 scanSounds()
             }
-        }.size(20, 20).position(soundSettingsStart, detailsY).build()
+        }.size(20, 20).pos(soundSettingsStart, detailsY).build()
         soundDeleteButton.active = false
-        addDrawableChild(soundDeleteButton)
+        addRenderableWidget(soundDeleteButton)
 
-        soundLoopButton = ButtonWidget.builder(Text.literal("\uD83D\uDD03").formatted(Formatting.DARK_GRAY)) {
+        soundLoopButton = Button.builder(Component.literal("\uD83D\uDD03").withStyle(ChatFormatting.DARK_GRAY)) {
             toggleSoundLoop()
             updateSoundLoopButtonText()
-        }.size(20, 20).position(soundSettingsStart + 25, detailsY).build()
+        }.size(20, 20).pos(soundSettingsStart + 25, detailsY).build()
         soundLoopButton.active = false
-        addDrawableChild(soundLoopButton)
+        addRenderableWidget(soundLoopButton)
 
-        detailBindBtn = ButtonWidget.builder(Text.literal("Keybind: None")) {
+        detailBindBtn = Button.builder(Component.literal("Keybind: None")) {
             if (selectedFile != null) {
                 isBinding = true
-                it.message = Text.literal("> Press Key <").formatted(Formatting.YELLOW)
+                it.message = Component.literal("> Press Key <").withStyle(ChatFormatting.YELLOW)
             }
-        }.size(80, 20).position(width - 110, detailsY).build()
+        }.size(80, 20).pos(width - 110, detailsY).build()
         detailBindBtn.active = false
-        addDrawableChild(detailBindBtn)
+        addRenderableWidget(detailBindBtn)
 
         progressBar = ProgressBar(
             x      = padding,
@@ -191,7 +191,7 @@ class SoundboardScreen(
             getSelectedFile = { selectedFile },
             SoundboardConfig.data.showProgressBar
         )
-        addDrawableChild(progressBar)
+        addRenderableWidget(progressBar)
     }
 
     // ── Data ────────────────────────────────────────────────────────────────────
@@ -206,7 +206,7 @@ class SoundboardScreen(
             selectedCategory = null
         }
 
-        val query = queryField.text.trim().lowercase()
+        val query = queryField.value.trim().lowercase()
         results = buildFileList(query)
         resultsList.setResults(results)
 
@@ -277,7 +277,7 @@ class SoundboardScreen(
             soundLoopButton.active = false
 
             detailBindBtn.active = false
-            detailBindBtn.message = Text.literal("Keybind: -")
+            detailBindBtn.message = Component.literal("Keybind: -")
         } else {
             val data = SoundboardConfig[file.name]
             detailBindBtn.active = true
@@ -300,8 +300,8 @@ class SoundboardScreen(
         if (selectedFile == null || selectedFile!!.name == null) return
         val enabled: Boolean? = SoundboardAudioSystem.getSoundRepeat(selectedFile!!.name)
 
-        soundLoopButton.message = Text.literal("\uD83D\uDD03")
-            .formatted(if (enabled == true) Formatting.GREEN else Formatting.GRAY)
+        soundLoopButton.message = Component.literal("\uD83D\uDD03")
+            .withStyle(if (enabled == true) ChatFormatting.GREEN else ChatFormatting.GRAY)
         soundLoopButton.active = enabled != null
     }
 
@@ -313,10 +313,10 @@ class SoundboardScreen(
 
     private fun updateBindButtonText(keyCode: Int) {
         val keyName = if (keyCode > 0)
-            InputUtil.fromKeyCode(KeyInput(keyCode, 0, 0)).localizedText
+            GLFW.glfwGetKeyName(keyCode, 0)
         else
-            Text.literal("None")
-        detailBindBtn.message = Text.literal("Keybind: ").append(keyName)
+            "None"
+        detailBindBtn.message = Component.literal("Keybind: $keyName")
     }
 
     private fun updateDetailLabel() {
@@ -326,14 +326,14 @@ class SoundboardScreen(
             ?: SoundboardAudioSystem.getSinglePlayingName()
 
         detailLabel.message = if (fileName == null) {
-            Text.literal("- No sound Playing -")
+            Component.literal("- No sound Playing -")
         } else {
-            Text.literal(fileName).formatted(Formatting.YELLOW)
+            Component.literal(fileName).withStyle(ChatFormatting.YELLOW)
         }
-        detailLabel.x = width / 2 - textRenderer.getWidth(detailLabel.message) / 2
+        detailLabel.x = width / 2 - font.width(detailLabel.message) / 2
     }
 
-    override fun charTyped(input: CharInput): Boolean {
+    override fun charTyped(input: CharacterEvent): Boolean {
         if (deleteConfirm.charTyped(input)) return true
         if (downloadOverlay.charTyped(input)) return true
         return super.charTyped(input)
@@ -341,66 +341,66 @@ class SoundboardScreen(
 
     // ── Rendering ───────────────────────────────────────────────────────────────
 
-    override fun render(context: DrawContext, mouseX: Int, mouseY: Int, delta: Float) {
+    override fun extractRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, delta: Float) {
         val overlayOpen = deleteConfirm.isVisible || downloadOverlay.isVisible
         val mx = if (overlayOpen) -1 else mouseX
         val my = if (overlayOpen) -1 else mouseY
 
-        pauseButton.message = if (SoundboardAudioSystem.playbackActive()) Text.of("⏸") else Text.of("⏵")
+        pauseButton.message = if (SoundboardAudioSystem.playbackActive()) Component.literal("⏸") else Component.literal("⏵")
         updateDetailLabel()
 
-        super.render(context, mx, my, delta)
-        renderCategoryTabs(context, mx, my)
+        super.extractRenderState(graphics, mx, my, delta)
+        renderCategoryTabs(graphics, mx, my)
         progressBar.tick()
 
-        context.fill(10, headerHeight, width - 10, headerHeight + 1, Color.GRAY.rgb)
-        context.fill(10, height - bottomPaneHeight, width - 10, height - bottomPaneHeight + 1, Color.GRAY.rgb)
+        graphics.fill(10, headerHeight, width - 10, headerHeight + 1, Color.GRAY.rgb)
+        graphics.fill(10, height - bottomPaneHeight, width - 10, height - bottomPaneHeight + 1, Color.GRAY.rgb)
 
-        deleteConfirm.render(context, mouseX, mouseY, delta)
-        downloadOverlay.render(context, mouseX, mouseY, delta)
+        deleteConfirm.render(graphics, mouseX, mouseY, delta)
+        downloadOverlay.render(graphics, mouseX, mouseY, delta)
 
-        // ── Drag ghost ─────────────────────────────────────────────────────────
+        // Drag ghost
         if (draggingFile != null) {
-            renderDragGhost(context, dragX, dragY)
+            renderDragGhost(graphics, dragX, dragY)
         }
     }
 
     //Renders a small floating label at the cursor showing the dragged filename.
-    private fun renderDragGhost(context: DrawContext, x: Int, y: Int) {
+    private fun renderDragGhost(graphics: GuiGraphicsExtractor, x: Int, y: Int) {
         val file = draggingFile ?: return
         var label = file.nameWithoutExtension
         val maxLabelWidth = 140
-        if (textRenderer.getWidth(label) > maxLabelWidth)
-            label = textRenderer.trimToWidth(label, maxLabelWidth - 10) + "…"
+        if (font.width(label) > maxLabelWidth)
+            label = font.plainSubstrByWidth(label, maxLabelWidth - 10) + "…"
 
         val padH = 4
         val padV = 3
-        val w = textRenderer.getWidth(label) + padH * 2
-        val h = textRenderer.fontHeight + padV * 2
+        val w = font.width(label) + padH * 2
+        val h = font.lineHeight + padV * 2
 
         // Offset so the ghost sits just above-right of the cursor tip
         val gx = x + 10
         val gy = y - h - 2
 
         // Semi-transparent dark background
-        context.fill(gx, gy, gx + w, gy + h, 0xCC1a1a1a.toInt())
+        graphics.fill(gx, gy, gx + w, gy + h, 0xCC1a1a1a.toInt())
         // Bright border to make it pop
-        context.fill(gx,         gy,         gx + w,     gy + 1,     0xFFFFD700.toInt()) // top
-        context.fill(gx,         gy + h - 1, gx + w,     gy + h,     0xFFFFD700.toInt()) // bottom
-        context.fill(gx,         gy,         gx + 1,     gy + h,     0xFFFFD700.toInt()) // left
-        context.fill(gx + w - 1, gy,         gx + w,     gy + h,     0xFFFFD700.toInt()) // right
+        graphics.fill(gx,         gy,         gx + w,     gy + 1,     0xFFFFD700.toInt()) // top
+        graphics.fill(gx,         gy + h - 1, gx + w,     gy + h,     0xFFFFD700.toInt()) // bottom
+        graphics.fill(gx,         gy,         gx + 1,     gy + h,     0xFFFFD700.toInt()) // left
+        graphics.fill(gx + w - 1, gy,         gx + w,     gy + h,     0xFFFFD700.toInt()) // right
 
-        context.drawText(textRenderer, label, gx + padH, gy + padV, 0xFFFFFFFF.toInt(), false)
+        graphics.text(font, label, gx + padH, gy + padV, 0xFFFFFFFF.toInt(), false)
 
         // Arrow hint toward the tab bar if the cursor is below it
         if (dragY > tabBarY + tabBarH + 20) {
             val hint = "↑ drop on a tab"
-            val hw = textRenderer.getWidth(hint)
-            context.drawText(textRenderer, hint, gx + w / 2 - hw / 2, gy - textRenderer.fontHeight - 2, 0xAAFFFFFF.toInt(), false)
+            val hw = font.width(hint)
+            graphics.text(font, hint, gx + w / 2 - hw / 2, gy - font.lineHeight - 2, 0xAAFFFFFF.toInt(), false)
         }
     }
 
-    private fun renderCategoryTabs(context: DrawContext, mouseX: Int, mouseY: Int) {
+    private fun renderCategoryTabs(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int) {
         tabRects.clear()
 
         // Update which tab is hovered while dragging
@@ -411,12 +411,12 @@ class SoundboardScreen(
         }
 
         var curX = 10
-        curX = drawTab(context, "All", curX, null, selectedCategory == null, mouseX, mouseY)
+        curX = drawTab(graphics, "All", curX, null, selectedCategory == null, mouseX, mouseY)
         for (catName in categoryList) {
             val label = catName.replaceFirstChar { it.uppercase() }
-            curX = drawTab(context, label, curX, catName, selectedCategory == catName, mouseX, mouseY)
+            curX = drawTab(graphics, label, curX, catName, selectedCategory == catName, mouseX, mouseY)
         }
-        drawTab(context, "＋", curX, null, false, mouseX, mouseY, name = "categoryAdder")
+        drawTab(graphics, "＋", curX, null, false, mouseX, mouseY, name = "categoryAdder")
 
         // Second pass: update dragHoveredTab now that tabRects is populated this frame
         if (draggingFile != null) {
@@ -429,7 +429,7 @@ class SoundboardScreen(
     }
 
     private fun drawTab(
-        context: DrawContext,
+        graphics: GuiGraphicsExtractor,
         label: String,
         x: Int,
         category: String?,
@@ -438,7 +438,7 @@ class SoundboardScreen(
         mouseY: Int,
         name: String = "category"
     ): Int {
-        val w = textRenderer.getWidth(label) + 12
+        val w = font.width(label) + 12
         val hovered = mouseX in x..(x + w) && mouseY in tabBarY..(tabBarY + tabBarH)
 
         // During a drag, highlight the tab the ghost is hovering over
@@ -464,16 +464,16 @@ class SoundboardScreen(
             else         -> 0xFFAAAAAA.toInt()
         }
 
-        context.fill(x, tabBarY, x + w, tabBarY + tabBarH, bg)
-        context.fill(x, tabBarY,           x + w, tabBarY + 1,                border)
-        context.fill(x, tabBarY + tabBarH - 1, x + w, tabBarY + tabBarH,      border)
-        context.fill(x, tabBarY,           x + 1, tabBarY + tabBarH,          border)
-        context.fill(x + w - 1, tabBarY,   x + w, tabBarY + tabBarH,          border)
+        graphics.fill(x, tabBarY, x + w, tabBarY + tabBarH, bg)
+        graphics.fill(x, tabBarY,           x + w, tabBarY + 1,                border)
+        graphics.fill(x, tabBarY + tabBarH - 1, x + w, tabBarY + tabBarH,      border)
+        graphics.fill(x, tabBarY,           x + 1, tabBarY + tabBarH,          border)
+        graphics.fill(x + w - 1, tabBarY,   x + w, tabBarY + tabBarH,          border)
 
-        context.drawText(
-            textRenderer, label,
-            x + (w - textRenderer.getWidth(label)) / 2,
-            tabBarY + (tabBarH - textRenderer.fontHeight) / 2,
+        graphics.text(
+            font, label,
+            x + (w - font.width(label)) / 2,
+            tabBarY + (tabBarH - font.lineHeight) / 2,
             textCol, false
         )
 
@@ -483,7 +483,7 @@ class SoundboardScreen(
 
     // ── Input ───────────────────────────────────────────────────────────────────
 
-    override fun mouseClicked(click: Click, doubled: Boolean): Boolean {
+    override fun mouseClicked(click: MouseButtonEvent, doubled: Boolean): Boolean {
         if (deleteConfirm.mouseClicked(click, doubled)) return true
         if (downloadOverlay.mouseClicked(click, doubled)) return true
 
@@ -517,7 +517,7 @@ class SoundboardScreen(
         dragStartY = mouseY
     }
 
-    override fun mouseDragged(click: Click, offsetX: Double, offsetY: Double): Boolean {
+    override fun mouseDragged(click: MouseButtonEvent, offsetY: Double, offsetX: Double): Boolean {
         // Activate drag once the cursor has moved past the threshold
         if (dragCandidate != null && draggingFile == null) {
             val dx = click.x - dragStartX
@@ -536,7 +536,7 @@ class SoundboardScreen(
         return super.mouseDragged(click, offsetX, offsetY)
     }
 
-    override fun mouseReleased(click: Click): Boolean {
+    override fun mouseReleased(click: MouseButtonEvent): Boolean {
         val droppedFile = draggingFile
 
         if (droppedFile != null) {
@@ -567,7 +567,7 @@ class SoundboardScreen(
         dragHoveredTab = null
     }
 
-    override fun keyPressed(input: KeyInput): Boolean {
+    override fun keyPressed(input: KeyEvent): Boolean {
         if (deleteConfirm.keyPressed(input)) return true
         if (downloadOverlay.keyPressed(input)) return true
 
@@ -579,17 +579,17 @@ class SoundboardScreen(
 
         if (isBinding && selectedFile != null) {
             val data = SoundboardConfig[selectedFile!!.name]
-            data.keybind = if (input.key == GLFW.GLFW_KEY_ESCAPE) -1 else input.key()
+            data.keybind = if (input.key == GLFW.GLFW_KEY_ESCAPE) -1 else input.key
             SoundboardConfig.save()
             updateBindButtonText(data.keybind)
             isBinding = false
             return true
         }
-        if (input.key == GLFW.GLFW_KEY_ESCAPE) { close(); return true }
+        if (input.key == GLFW.GLFW_KEY_ESCAPE) { onClose(); return true }
         return super.keyPressed(input)
     }
 
-    override fun close() {
+    override fun onClose() {
         SoundboardConfig.save()
         SoundboardSession.setSelectedCategory(selectedCategory)
         mc.setScreen(parent)
@@ -598,85 +598,88 @@ class SoundboardScreen(
     // ── List widget ─────────────────────────────────────────────────────────────
 
     private inner class ResultListWidget(
-        client: MinecraftClient, width: Int, height: Int, y: Int, itemHeight: Int
-    ) : ElementListWidget<ResultListWidget.Entry>(client, width, height, y, itemHeight) {
+        client: Minecraft, width: Int, height: Int, y: Int, itemHeight: Int
+    ) : AbstractSelectionList<ResultListWidget.Entry>(client, width, height, y, itemHeight) {
 
         fun setResults(files: List<File>) {
             clearEntries()
             files.forEach { addEntry(Entry(it)) }
-            scrollY = 0.0
+            setScrollAmount(0.0)
         }
 
         override fun getRowWidth() = width - 20
 
-        inner class Entry(private val file: File) : ElementListWidget.Entry<Entry>() {
+        override fun updateWidgetNarration(output: NarrationElementOutput) {}
 
-            private val favBtn: ButtonWidget
-            private val playBtn: ButtonWidget
-            private val elements = mutableListOf<Element>()
-            private val selectables = mutableListOf<Selectable>()
+        override fun extractSelection(graphics: GuiGraphicsExtractor, entry: Entry, outlineColor: Int) {
+            // Prevents the default-rendered selection outlines
+        }
+
+        inner class Entry(private val file: File) : AbstractSelectionList.Entry<Entry>() {
+
+            private val favBtn: Button
+            private val playBtn: Button
 
             init {
                 val data = SoundboardConfig[file.name]
 
-                favBtn = ButtonWidget.builder(
-                    Text.literal(if (data.favorite) "★" else "☆")
-                        .formatted(if (data.favorite) Formatting.GOLD else Formatting.GRAY)
+                favBtn = Button.builder(
+                    Component.literal(if (data.favorite) "★" else "☆")
+                        .withStyle(if (data.favorite) ChatFormatting.GOLD else ChatFormatting.GRAY)
                 ) {
                     data.favorite = !data.favorite
                     SoundboardConfig.save()
                     scanSounds()
                 }.size(20, 20).build()
 
-                playBtn = ButtonWidget.builder(Text.literal("Play")) {
+                playBtn = Button.builder(Component.literal("Play")) {
                     if (SoundboardAudioSystem.isPlaying(file.name)) SoundboardAudioSystem.stop(file.name)
                     else SoundboardAudioSystem.playFile(file)
                     selectSound(file)
                 }.size(40, 20).build()
-
-                elements += favBtn; elements += playBtn
-                selectables += favBtn; selectables += playBtn
             }
 
-            override fun render(context: DrawContext, mouseX: Int, mouseY: Int, hovered: Boolean, deltaTicks: Float) {
+            override fun extractContent(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, hovered: Boolean, a: Float) {
                 val isPlaying = SoundboardAudioSystem.isPlaying(file.name)
 
+                // Play Button
                 playBtn.message = if (SoundboardAudioSystem.playbackPaused && isPlaying)
-                    Text.literal("Paused").formatted(Formatting.YELLOW)
-                else if (isPlaying) Text.literal("Stop").formatted(Formatting.RED)
-                else Text.literal("Play")
+                    Component.literal("Paused").withStyle(ChatFormatting.YELLOW)
+                else if (isPlaying) Component.literal("Stop").withStyle(ChatFormatting.RED)
+                else Component.literal("Play")
 
-                // Dim entries while a different file is being dragged
+                // Dragging
                 val beingDragged = draggingFile?.name == file.name
                 val alpha = if (draggingFile != null && !beingDragged) 0x55 else 0xFF
 
-                if (selectedFile?.name == file.name)
-                    context.fill(x, y + 1, x + width, y + height - 1, 0x33FFFFFF)
-
-                // Highlight the row being dragged
                 if (beingDragged)
-                    context.fill(x, y + 1, x + width, y + height - 1, 0x44FFD700)
+                    graphics.fill(x, y + 1, x + width, y + height - 1, 0x44FFD700)
 
-                val textY = y + (height - textRenderer.fontHeight) / 2 + 1
+                // Selected File
+                if (selectedFile?.name == file.name)
+                    graphics.fill(x, y + 1, x + width, y + height - 1, 0x33FFFFFF)
+
+                // Song name
+                val textY = y + (height - font.lineHeight) / 2 + 1
                 var name = file.nameWithoutExtension
-                if (textRenderer.getWidth(name) > width - 70)
-                    name = textRenderer.trimToWidth(name, width - 75) + "..."
+                if (font.width(name) > width - 70)
+                    name = font.plainSubstrByWidth(name, width - 75) + "..."
 
                 val textColor = (alpha shl 24) or (0x00FFFFFF and Color.WHITE.rgb)
-                context.drawText(textRenderer, name, x + 25, textY, textColor, true)
+                graphics.text(font, name, x + 25, textY, textColor, true)
 
+                // Buttons
                 favBtn.x = x;                 favBtn.y = y + (height - 20) / 2
                 playBtn.x = x + width - 40;   playBtn.y = y + (height - 20) / 2
 
-                favBtn.render(context, mouseX, mouseY, deltaTicks)
-                playBtn.render(context, mouseX, mouseY, deltaTicks)
+                favBtn.extractRenderState(graphics, mouseX, mouseY, a)
+                playBtn.extractRenderState(graphics, mouseX, mouseY, a)
             }
 
-            override fun mouseClicked(click: Click, doubled: Boolean): Boolean {
+            override fun mouseClicked(click: MouseButtonEvent, doubled: Boolean): Boolean {
                 if (favBtn.mouseClicked(click, doubled)) return true
                 if (playBtn.mouseClicked(click, doubled)) return true
 
-                // Register as a drag candidate (drag activates in mouseDragged)
                 onEntryMouseDown(file, click.x.toInt(), click.y.toInt())
 
                 if (doubled) {
@@ -685,9 +688,6 @@ class SoundboardScreen(
                 } else selectSound(file)
                 return true
             }
-
-            override fun children() = elements
-            override fun selectableChildren() = selectables
         }
     }
 }

@@ -2,7 +2,7 @@ package org.wolmics.soundboardplus.integration
 
 import com.terraformersmc.modmenu.api.ConfigScreenFactory
 import com.terraformersmc.modmenu.api.ModMenuApi
-import net.minecraft.client.gui.screen.Screen
+import net.minecraft.client.gui.screens.Screen
 import org.wolmics.soundboardplus.gui.SoundboardConfigScreen
 
 class ModMenuIntegration : ModMenuApi {

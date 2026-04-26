@@ -5,8 +5,8 @@ import de.maxhenkel.voicechat.api.VoicechatClientApi
 import de.maxhenkel.voicechat.api.audiochannel.ClientStaticAudioChannel
 import de.maxhenkel.voicechat.api.events.ClientVoicechatConnectionEvent
 import de.maxhenkel.voicechat.api.events.MergeClientSoundEvent
-import net.minecraft.client.MinecraftClient
-import net.minecraft.text.Text
+import net.minecraft.client.Minecraft
+import net.minecraft.network.chat.Component
 import org.wolmics.soundboardplus.config.SoundboardConfig
 import org.wolmics.soundboardplus.util.ToastManager
 import java.io.BufferedInputStream
@@ -153,16 +153,16 @@ object SoundboardAudioSystem {
     }
 
     fun playFile(file: File) {
-        val client = MinecraftClient.getInstance()
+        val client = Minecraft.getInstance()
         val api = clientApi
 
         if (api == null) {
-            ToastManager.createToast(Text.of("§cVoice chat not connected!"), 1500)
+            ToastManager.createToast(Component.literal("§cVoice chat not connected!"), 1500)
             return
         }
 
         if (api.isMuted && !SoundboardConfig.data.playWhileMuted) {
-            ToastManager.createToast(Text.of("§cCannot play soundboard while muted!"), 1500)
+            ToastManager.createToast(Component.literal("§cCannot play soundboard while muted!"), 1500)
             return
         }
 
@@ -180,7 +180,7 @@ object SoundboardAudioSystem {
                 } else {
                     activeSounds.remove(playingSound)
                     client.execute {
-                        ToastManager.createToast(Text.of("§cFailed to decode: ${file.name}"), 2500)
+                        ToastManager.createToast(Component.literal("§cFailed to decode: ${file.name}"), 2500)
                     }
                 }
             } catch (e: Exception) {

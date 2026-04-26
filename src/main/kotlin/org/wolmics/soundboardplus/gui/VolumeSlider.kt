@@ -1,18 +1,18 @@
 package org.wolmics.soundboardplus.gui
 
-import net.minecraft.client.MinecraftClient
-import net.minecraft.client.gui.DrawContext
-import net.minecraft.client.gui.widget.SliderWidget
-import net.minecraft.text.Text
+import net.minecraft.client.Minecraft
+import net.minecraft.client.gui.GuiGraphicsExtractor
+import net.minecraft.client.gui.components.AbstractSliderButton
+import net.minecraft.network.chat.Component
 import java.awt.Color
 import kotlin.math.roundToInt
 
 class VolumeSlider(
     x: Int, y: Int, width: Int, height: Int,
-    private val prefix: Text,
+    private val prefix: Component,
     initialValue: Float,
     private val onChange: (Float) -> Unit
-) : SliderWidget(x, y, width, height, Text.empty(), initialValue.toDouble()) {
+) : AbstractSliderButton(x, y, width, height, Component.empty(), initialValue.toDouble()) {
 
     init {
         updateMessage()
@@ -24,26 +24,26 @@ class VolumeSlider(
         applyValue()
     }
 
-    override fun renderWidget(context: DrawContext, mouseX: Int, mouseY: Int, delta: Float) {
-        super.renderWidget(context, mouseX, mouseY, delta)
+    override fun extractWidgetRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, delta: Float) {
+        super.extractWidgetRenderState(graphics, mouseX, mouseY, delta)
 
         if (this.active) return
 
-        val tr = MinecraftClient.getInstance().textRenderer
+        val font = Minecraft.getInstance().font
 
-        val drawText = Text.literal("").append(prefix).append(": None")
+        val drawText = Component.literal("").append(prefix).append(": None")
 
-        val textWidth = tr.getWidth(drawText)
+        val textWidth = font.width(drawText)
         val textX = this.x + (this.width - textWidth) / 2
 
-        val textY = this.y + (this.height - tr.fontHeight) / 2 + 1
+        val textY = this.y + (this.height - font.lineHeight) / 2 + 1
 
-        context.drawText(tr, drawText, textX, textY, Color(160, 160, 160).rgb, false)
+        graphics.text(font, drawText, textX, textY, Color(160, 160, 160).rgb, false)
     }
 
     override fun updateMessage() {
         val percent = (value * 100).roundToInt()
-        message = Text.literal("").append(prefix).append(": ${percent}%")
+        message = Component.literal("").append(prefix).append(": ${percent}%")
     }
 
     override fun applyValue() {

@@ -1,8 +1,8 @@
 package org.wolmics.soundboardplus.gui
 
-import net.minecraft.client.gui.Click
-import net.minecraft.client.gui.widget.SliderWidget
-import net.minecraft.text.Text
+import net.minecraft.client.gui.components.AbstractSliderButton
+import net.minecraft.client.input.MouseButtonEvent
+import net.minecraft.network.chat.Component
 import org.wolmics.soundboardplus.SoundboardAudioSystem
 import java.io.File
 
@@ -13,7 +13,7 @@ class ProgressBar(
     height: Int,
     private val getSelectedFile: () -> File?,
     private val isEnabled: Boolean = true,
-) : SliderWidget(x, y, width, height, Text.literal("--:-- / --:--"), 0.0) {
+) : AbstractSliderButton(x, y, width, height, Component.literal("--:-- / --:--"), 0.0) {
 
     companion object {
          // Samples per second used by Simple Voice Chat's audio pipeline.
@@ -37,7 +37,7 @@ class ProgressBar(
 
         // Priority 2: the one and only playing sound
         val singleName = SoundboardAudioSystem.getSinglePlayingName() ?: return null
-        return File(singleName)   // only .name is used; no I/O performed
+        return File(singleName)
     }
 
     // ── SliderWidget contract ────────────────────────────────────────────────
@@ -51,10 +51,10 @@ class ProgressBar(
         val total = if (name != null) SoundboardAudioSystem.getTotalSamples(name) ?: 0 else 0
 
         message = if (total == 0) {
-            Text.literal("--:-- / --:--")
+            Component.literal("--:-- / --:--")
         } else {
             val elapsed = (value * total).toInt()
-            Text.literal(
+            Component.literal(
                 "${formatTime(elapsed / SAMPLE_RATE)}  /  ${formatTime(total / SAMPLE_RATE)}"
             )
         }
@@ -77,12 +77,12 @@ class ProgressBar(
     }
 
     // ── Drag-state tracking ──────────────────────────────────────────────────
-    override fun onClick(click: Click, double: Boolean) {
+    override fun onClick(click: MouseButtonEvent, double: Boolean) {
         userDragging = true
         super.onClick(click, double)
     }
 
-    override fun onRelease(click: Click) {
+    override fun onRelease(click: MouseButtonEvent) {
         userDragging = false
         super.onRelease(click)
     }
