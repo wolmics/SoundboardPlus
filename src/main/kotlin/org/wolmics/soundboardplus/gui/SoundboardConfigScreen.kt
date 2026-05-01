@@ -12,7 +12,10 @@ import java.net.URI
 
 class SoundboardConfigScreen(private val parent: Screen?) : Screen(Text.literal("Soundboard Configuration")) {
     private val originalAuthorText: String = "Originally created by 0x1bd"
-    private val forkAuthorText: String = "Modified, and maintained by Wolmics"
+    private val forkAuthorText: String = "Modified and maintained by Wolmics"
+
+    private val originalAuthorGithubUrl: String = "https://github.com/0x1bd/SimpleSoundboard"
+    private val forkAuthorGithubUrl: String = "https://github.com/wolmics/SoundboardPlus"
 
     override fun init() {
         addDrawableChild(ButtonWidget.builder(Text.literal("Back")) { close() }
@@ -39,7 +42,7 @@ class SoundboardConfigScreen(private val parent: Screen?) : Screen(Text.literal(
 
         addDrawableChild(
             CyclingButtonWidget.onOffBuilder(SoundboardConfig.data.playOnlyOne)
-                .build(width / 2 - 100, 100, 200, 20, Text.literal("Play only one at a time")) { _, value ->
+                .build(width / 2 - 100, 100, 200, 20, Text.literal("No overlapping sounds")) { _, value ->
                     SoundboardConfig.data.playOnlyOne = value
                     SoundboardConfig.save()
                 }
@@ -66,12 +69,12 @@ class SoundboardConfigScreen(private val parent: Screen?) : Screen(Text.literal(
         if (click?.button() == 0) { // left click only
             val origWidth = textRenderer.getWidth(originalAuthorText)
             if (click.x in 10.0..(10.0 + origWidth) && click.y in (height - 35.0)..(height - 25.0)) {
-                Util.getOperatingSystem().open(URI("https://github.com/0x1bd/SimpleSoundboard"))
+                Util.getOperatingSystem().open(URI(originalAuthorGithubUrl))
             }
 
             val forkWidth = textRenderer.getWidth(forkAuthorText)
             if (click.x in 10.0..(10.0 + forkWidth) && click.y in (height - 20.0)..(height - 10.0)) {
-                Util.getOperatingSystem().open(URI("https://github.com/wolmics"))
+                Util.getOperatingSystem().open(URI(forkAuthorGithubUrl))
             }
         }
         return super.mouseClicked(click, double)

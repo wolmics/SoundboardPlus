@@ -11,14 +11,14 @@ import net.minecraft.text.Text
 import org.lwjgl.glfw.GLFW
 
 class CategoryConfigOverlay(ctx: OverlayContext, private val title: Text, private val onConfirm: (String) -> Unit, onDismiss: (() -> Unit)? = null): ScreenOverlay(ctx, overlayWidth = 160, overlayHeight = 80, onDismiss = onDismiss) {
-    private val label = TextWidget(Text.literal("Category Creater"), textRenderer)
+    private val label = TextWidget(Text.literal("Create Category"), textRenderer)
 
-    private val confirmButton = ButtonWidget.builder(Text.literal("Add Category")) {
+    private val confirmButton = ButtonWidget.builder(Text.literal("Add")) {
         onConfirm(categoryNameField.text)
         hide()
     }.size(100, 20).position(0, 0).build()
 
-    private var categoryNameField: TextFieldWidget = TextFieldWidget(textRenderer, (screenWidth / 2 - overlayWidth / 2) + 10, y + 25, overlayWidth - 20, 20, Text.literal("Enter the category name"))
+    private var categoryNameField: TextFieldWidget = TextFieldWidget(textRenderer, (screenWidth - overlayWidth) / 2 + 10, y + 25, overlayWidth - 20, 20, Text.literal("Enter the category name"))
 
     init {
         categoryNameField.setMaxLength(16)
@@ -27,23 +27,22 @@ class CategoryConfigOverlay(ctx: OverlayContext, private val title: Text, privat
 
     override fun onShow() {
         categoryNameField.text = ""
-        categoryNameField.setFocused(true)
+        categoryNameField.isFocused = true
         super.onShow()
     }
 
     override fun onHide() {
-        categoryNameField.setFocused(false)
+        categoryNameField.isFocused = false
         super.onHide()
     }
 
 
     override fun renderContent(context: DrawContext, mouseX: Int, mouseY: Int, delta: Float) {
         context.drawCenteredTextWithShadow(textRenderer, title, screenWidth / 2, y + 14, 0xFFFFFF)
+        confirmButton.setPosition((screenWidth - confirmButton.width) / 2, y + overlayHeight - 28)
+        label.setPosition((screenWidth - label.width) / 2, y + 8)
 
-        confirmButton.setPosition(screenWidth / 2 - 50, y + overlayHeight - 28)
-        label.setPosition(screenWidth / 2 - 50, y + 8)
-
-        if (categoryNameField.text == "") {
+        if (categoryNameField.text.isEmpty()) {
             categoryNameField.setSuggestion("Enter the category name")
         } else {
             categoryNameField.setSuggestion("")

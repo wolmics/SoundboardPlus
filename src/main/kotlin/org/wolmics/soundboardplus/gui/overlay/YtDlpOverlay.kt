@@ -22,7 +22,7 @@ class YtDlpOverlay(ctx: OverlayContext, private val title: Text) : ScreenOverlay
     private var urlField = TextFieldWidget(
         textRenderer,
         x + 15,
-        y + 22,
+        y + 26,
         overlayWidth - 30,  // 170px, padded 15px on each side
         16,
         Text.literal("YouTube / media URL")
