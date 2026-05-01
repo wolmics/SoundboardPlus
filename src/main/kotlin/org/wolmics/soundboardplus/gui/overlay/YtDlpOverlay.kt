@@ -22,7 +22,7 @@ class YtDlpOverlay(ctx: OverlayContext, title: Component) : ScreenOverlay(ctx, o
     private var urlField = EditBox(
         font,
         x + 15,
-        y + 22,
+        y + 26,
         overlayWidth - 30,  // 170px, padded 15px on each side
         16,
         Component.literal("YouTube / media URL")

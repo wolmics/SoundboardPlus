@@ -11,14 +11,14 @@ import net.minecraft.network.chat.Component
 import org.lwjgl.glfw.GLFW
 
 class CategoryConfigOverlay(ctx: OverlayContext, private val title: Component, private val onConfirm: (String) -> Unit, onDismiss: (() -> Unit)? = null): ScreenOverlay(ctx, overlayWidth = 160, overlayHeight = 80, onDismiss = onDismiss) {
-    private val label = StringWidget(Component.literal("Category Creater"), font)
+    private val label = StringWidget(Component.literal("Create Category"), font)
 
-    private val confirmButton = Button.builder(Component.literal("Add Category")) {
+    private val confirmButton = Button.builder(Component.literal("Add")) {
         onConfirm(categoryNameField.value)
         hide()
     }.size(100, 20).pos(0, 0).build()
 
-    private var categoryNameField: EditBox = EditBox(font, (screenWidth / 2 - overlayWidth / 2) + 10, y + 25, overlayWidth - 20, 20, Component.literal("Enter the category name"))
+    private var categoryNameField: EditBox = EditBox(font, (screenWidth - overlayWidth) / 2 + 10, y + 25, overlayWidth - 20, 20, Component.literal("Enter the category name"))
 
     init {
         categoryNameField.setMaxLength(16)
@@ -41,9 +41,9 @@ class CategoryConfigOverlay(ctx: OverlayContext, private val title: Component, p
         graphics.centeredText(font, title, screenWidth / 2, y + 14, 0xFFFFFF)
 
         confirmButton.setPosition(screenWidth / 2 - 50, y + overlayHeight - 28)
-        label.setPosition(screenWidth / 2 - 50, y + 8)
+        label.setPosition((screenWidth - font.width(label.message)) / 2, y + 8);
 
-        if (categoryNameField.value == "") {
+        if (categoryNameField.value.isEmpty()) {
             categoryNameField.setSuggestion("Enter the category name")
         } else {
             categoryNameField.setSuggestion("")

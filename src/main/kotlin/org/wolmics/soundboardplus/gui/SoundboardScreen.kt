@@ -313,10 +313,10 @@ class SoundboardScreen(
 
     private fun updateBindButtonText(keyCode: Int) {
         val keyName = if (keyCode > 0)
-            GLFW.glfwGetKeyName(keyCode, 0)
+            GLFW.glfwGetKeyName(keyCode, 0) ?: "Unknown"
         else
-            "None"
-        detailBindBtn.message = Component.literal("Keybind: $keyName")
+            "-"
+        detailBindBtn.message = Component.literal("Keybind: ${keyName?.uppercase()}")
     }
 
     private fun updateDetailLabel() {
