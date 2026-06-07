@@ -47,6 +47,7 @@ class SoundboardScreen(
 
     private lateinit var soundDeleteButton: Button
     private lateinit var soundLoopButton: Button
+    private lateinit var stopAllButton: Button
 
     private val overlayCtx get() = OverlayContext(font, width, height)
     private lateinit var deleteConfirm: CategoryConfigOverlay
@@ -167,10 +168,17 @@ class SoundboardScreen(
         soundDeleteButton.active = false
         addRenderableWidget(soundDeleteButton)
 
+        stopAllButton = Button.builder(Component.literal("■").withStyle(ChatFormatting.RED)) {
+            SoundboardAudioSystem.stopAll()
+            updateSoundLoopButtonText()
+        }.size(20, 20).pos(soundSettingsStart + 25, detailsY).build()
+        stopAllButton.active = false
+        addRenderableWidget(stopAllButton)
+
         soundLoopButton = Button.builder(Component.literal("\uD83D\uDD03").withStyle(ChatFormatting.DARK_GRAY)) {
             toggleSoundLoop()
             updateSoundLoopButtonText()
-        }.size(20, 20).pos(soundSettingsStart + 25, detailsY).build()
+        }.size(20, 20).pos(soundSettingsStart + 50, detailsY).build()
         soundLoopButton.active = false
         addRenderableWidget(soundLoopButton)
 
@@ -347,6 +355,7 @@ class SoundboardScreen(
         val my = if (overlayOpen) -1 else mouseY
 
         pauseButton.message = if (SoundboardAudioSystem.playbackActive()) Component.literal("⏸") else Component.literal("⏵")
+        stopAllButton.active = SoundboardAudioSystem.playbackActive()
         updateDetailLabel()
 
         super.extractRenderState(graphics, mx, my, delta)
