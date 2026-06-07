@@ -55,6 +55,8 @@ dependencies {
     modRuntimeOnly("maven.modrinth:simple-voice-chat:fabric-${project.property("voicechat_mod_version")}")
 
     modImplementation("com.terraformersmc:modmenu:${property("modmenu_version")}")
+
+    include(implementation("javazoom:jlayer:${property("jlayer_version")}")!!)
 }
 
 tasks.processResources {
