@@ -15,8 +15,7 @@ object KeyEventBus {
     private val pressedKeys = mutableSetOf<Int>()
 
     fun handleSoundKeybinds(client: Minecraft) {
-        if (client.screen != null) return
-
+        if (client.gui.screen() != null) return
         val snapshot = pressedKeys.toHashSet()
 
         for ((categoryName, category) in SoundboardConfig.data.categories) {

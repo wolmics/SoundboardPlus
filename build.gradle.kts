@@ -53,7 +53,8 @@ dependencies {
 
     runtimeOnly("maven.modrinth:simple-voice-chat:fabric-${project.property("voicechat_mod_version")}")
 
-    implementation("com.terraformersmc:modmenu:${property("modmenu_version")}")
+    compileOnly("com.terraformersmc:modmenu:${property("modmenu_version")}")
+    localRuntime("com.terraformersmc:modmenu:${property("modmenu_version")}")
 
     include(implementation("javazoom:jlayer:${property("jlayer_version")}")!!)
 }

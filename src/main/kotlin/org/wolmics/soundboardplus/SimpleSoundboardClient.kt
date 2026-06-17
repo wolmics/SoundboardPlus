@@ -61,8 +61,7 @@ class SimpleSoundboardClient : ClientModInitializer {
             if (client.player == null) return@register
 
             if (OPEN_GUI_KEY.consumeClick()) {
-                client.setScreen(SoundboardScreen())
-                client.setScreen(SoundboardScreen())
+                client.setScreenAndShow(SoundboardScreen())
             }
 
             if (PAUSE_PLAYBACK_KEY.consumeClick()) {

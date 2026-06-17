@@ -13,7 +13,7 @@ object ToastManager {
 
     fun createToast(text: Component, ms: Long) {
         val toast = SystemToast(SystemToast.SystemToastId.FILE_DROP_FAILURE, Component.literal("Better Soundboard"), text)
-        client.toastManager.addToast(toast)
+        client.gui.toastManager().addToast(toast)
         hideSystemToastIn(toast, ms)
     }
 
@@ -25,7 +25,7 @@ object ToastManager {
             Component.literal(""),
             true
         )
-        client.toastManager.addToast(toast)
+        client.gui.toastManager().addToast(toast)
 
         changeToastText(toast, text)
         toast.updateProgress(0.0f)

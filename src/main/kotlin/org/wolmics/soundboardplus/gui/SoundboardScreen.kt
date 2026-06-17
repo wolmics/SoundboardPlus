@@ -128,7 +128,7 @@ class SoundboardScreen(
             }.size(75, 20).pos(rightEdge - 75, 20).build()
         )
         addRenderableWidget(
-            Button.builder(Component.literal("Config")) { mc.setScreen(SoundboardConfigScreen(this)) }
+            Button.builder(Component.literal("Config")) { mc.setScreenAndShow(SoundboardConfigScreen(this)) }
                 .size(65, 20).pos(rightEdge - 75 - 5 - 65, 20).build()
         )
     }
@@ -601,7 +601,7 @@ class SoundboardScreen(
     override fun onClose() {
         SoundboardConfig.save()
         SoundboardSession.setSelectedCategory(selectedCategory)
-        mc.setScreen(parent)
+        mc.gui.setScreen(parent)
     }
 
     // ── List widget ─────────────────────────────────────────────────────────────
