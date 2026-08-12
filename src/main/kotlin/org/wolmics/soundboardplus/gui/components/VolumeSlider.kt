@@ -1,4 +1,4 @@
-package org.wolmics.soundboardplus.gui
+package org.wolmics.soundboardplus.gui.components
 
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
