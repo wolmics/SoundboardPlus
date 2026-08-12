@@ -1,143 +1,277 @@
 package org.wolmics.soundboardplus
 
 import net.minecraft.ChatFormatting
+import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.components.toasts.TutorialToast
 import net.minecraft.network.chat.Component
 import net.minecraft.util.Util
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import org.wolmics.soundboardplus.config.SoundboardConfig
+import org.wolmics.soundboardplus.gui.SoundboardScreen
 import org.wolmics.soundboardplus.util.ToastManager
 import java.awt.Color
 import java.io.BufferedInputStream
 import java.io.BufferedReader
 import java.io.File
+import java.io.FileWriter
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URI
+import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
 
 class YtDlpManager {
 
     private val isWindows = Util.getPlatform().name.contains("windows", ignoreCase = true)
-    private val binaryName = if (isWindows) "yt-dlp.exe" else "yt-dlp"
-    private val downloadUrl = if (isWindows)
+    private val logger: Logger = LoggerFactory.getLogger("YtDlpManager")
+
+    val ytDlpFile: File
+        get() = File(SoundboardConfig.data.ytDlpPath).takeIf { it.exists() && it.isFile() && it.canExecute() }
+            ?: File(SimpleSoundboardClient.modDependencyDir, if (isWindows) "yt-dlp.exe" else "yt-dlp")
+
+    private val ytDlpUrl = if (isWindows)
         "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
     else
         "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
 
-    private val ffmpegDir = File(SimpleSoundboardClient.modDependencyDir.path + "/ffmpeg/")
-    private val ffmpegBinaryName = if (isWindows) "ffmpeg.exe" else "ffmpeg"
-    private val ffmpegDownloadUrl = if (isWindows)
+    private val ytDlpNightlyUrl = if (isWindows)
+        "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.exe"
+    else
+        "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp"
+
+    private val ffmpegDir = File(SimpleSoundboardClient.modDependencyDir, "ffmpeg")
+
+    val ffmpegFile: File
+        get() = File(SoundboardConfig.data.ffmpegPath).takeIf { it.exists() && it.isFile() && it.canExecute() }
+            ?: File(ffmpegDir, if (isWindows) "ffmpeg.exe" else "ffmpeg")
+
+    private val ffmpegUrl = if (isWindows)
         "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip"
     else
         "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl-shared.tar.xz"
 
-    private lateinit var toast: TutorialToast
 
-    private fun binFile(): File {
-        if (!SimpleSoundboardClient.modDependencyDir.exists()) SimpleSoundboardClient.modDependencyDir.mkdirs()
-        return File(SimpleSoundboardClient.modDependencyDir, binaryName)
+    val logFile = File(SimpleSoundboardClient.modDependencyDir, "yt-dlp.log")
+    private val maxLogFileBytes = 5_000_000L // ~5MB, then start over
+
+    // ---------------------------
+    // Install / uninstall / update / status
+    // ---------------------------
+
+    fun isYtDlpInstalled() = ytDlpFile.exists() && ytDlpFile.canExecute()
+    fun isFfmpegInstalled() = ffmpegFile.exists() && ffmpegFile.canExecute()
+
+    fun ytDlpVersion(): String? = readVersion(ytDlpFile, "--version", Regex("""([\d.]+)"""))
+    fun ffmpegVersion(): String? = readVersion(ffmpegFile, "-version", Regex("""ffmpeg version (\S+)"""))
+
+    fun ensureBinariesPresent(toast: TutorialToast? = null): Boolean {
+        val ytDlpOk = isYtDlpInstalled() || installYtDlp(toast)
+        val ffmpegOk = isFfmpegInstalled() || installFfmpeg(toast)
+        return ytDlpOk && ffmpegOk
     }
 
-    private fun ffmpegBinFile(): File {
-        if (!SimpleSoundboardClient.modDependencyDir.exists()) SimpleSoundboardClient.modDependencyDir.mkdirs()
-        if (!ffmpegDir.exists()) ffmpegDir.mkdirs()
-        return File(ffmpegDir, ffmpegBinaryName)
-    }
-
-    @Synchronized
-    fun ensureBinariesPresent(): Boolean {
-        return ensureYtDlpPresent() && ensureFfmpegPresent()
-    }
-
-    @Synchronized
-    fun ensureYtDlpPresent(): Boolean {
-        val bin = binFile()
-        if (bin.exists() && bin.canExecute()) return true
-
+    fun installYtDlp(toast: TutorialToast? = null): Boolean {
         return try {
-            ToastManager.changeToastText(toast, Component.literal("Downloading yt-dlp..."))
-
-            downloadBinary(downloadUrl, bin)
-            bin.setExecutable(true, false)
+            ToastManager.updateTextAsync(toast, Component.literal("Downloading yt-dlp..."))
+            downloadFile(ytDlpUrl, ytDlpFile)
+            ytDlpFile.setExecutable(true, false)
             true
         } catch (t: Throwable) {
-            ToastManager.changeToastText(toast, Component.literal("Failed to download yt-dlp.").withColor(0xFFFF0000.toInt()))
+            failure(toast, "message.simplesoundboard.youtube.install_failed")
             t.printStackTrace()
             false
         }
     }
 
-    @Synchronized
-    fun ensureFfmpegPresent(): Boolean {
-        val bin = ffmpegBinFile()
-        if (bin.exists() && bin.canExecute()) return true
-
+    fun installFfmpeg(toast: TutorialToast? = null): Boolean {
         return try {
-            ToastManager.changeToastText(toast, Component.literal("Downloading FFmpeg..."))
-            val archiveName = if (isWindows) "ffmpeg.zip" else "ffmpeg.tar.xz"
-            val archiveFile = File(SimpleSoundboardClient.modDependencyDir, archiveName)
-            downloadBinary(ffmpegDownloadUrl, archiveFile)
+            ToastManager.updateTextAsync(toast,Component.literal("Downloading FFmpeg..."))
+            if (!ffmpegDir.exists()) ffmpegDir.mkdirs()
 
-            if (isWindows) {
-                extractZip(archiveFile, ffmpegDir)
-            } else {
-                extractTarXz(archiveFile, ffmpegDir)
-            }
+            val archiveFile = File(ffmpegDir, if (isWindows) "ffmpeg.zip" else "ffmpeg.tar.xz")
+            downloadFile(ffmpegUrl, archiveFile)
 
+            if (isWindows) extractZip(archiveFile, ffmpegDir) else extractTarXz(archiveFile, ffmpegDir)
             archiveFile.delete()
-            bin.setExecutable(true, false)
+
+            ffmpegFile.setExecutable(true, false)
             true
         } catch (t: Throwable) {
-            ToastManager.changeToastText(toast, Component.literal("Failed to download FFmpeg.").withColor(0xFFFF0000.toInt()))
+            failure(toast, "message.simplesoundboard.ffmpeg.install_failed")
             t.printStackTrace()
             false
         }
     }
 
-    private fun extractZip(zipFile: File, destDir: File) {
-        java.util.zip.ZipFile(zipFile).use { zip ->
-            zip.entries().asSequence().forEach { entry ->
-                val name = entry.name
-                if (!entry.isDirectory && (name.contains("/bin/") || name.startsWith("bin/"))) {
-                    val fileName = name.substringAfterLast('/')
-                    val outputFile = File(destDir, fileName)
-                    zip.getInputStream(entry).use { input ->
-                        outputFile.outputStream().use { output ->
-                            input.copyTo(output)
-                        }
+    fun uninstallYtDlp(): Boolean = ytDlpFile.delete()
+    fun uninstallFfmpeg(): Boolean = ffmpegDir.deleteRecursively()
+
+    fun uninstallAll(): Boolean {
+        val a = uninstallYtDlp()
+        val b = uninstallFfmpeg()
+        return a && b
+    }
+
+    fun updateYtDlp(toast: TutorialToast? = null): Boolean {
+        uninstallYtDlp()
+        return installYtDlp(toast)
+    }
+
+    fun updateFfmpeg(toast: TutorialToast? = null): Boolean {
+        uninstallFfmpeg()
+        return installFfmpeg(toast)
+    }
+
+    fun updateYtDlpNightly(toast: TutorialToast? = null): Boolean {
+        return try {
+            ToastManager.updateTextAsync(toast, Component.literal("Downloading yt-dlp (nightly)......"))
+            uninstallYtDlp()
+            downloadFile(ytDlpNightlyUrl, ytDlpFile)
+            ytDlpFile.setExecutable(true, false)
+            ToastManager.hideToast(toast, 2000L)
+            true
+        } catch (t: Throwable) {
+            failure(toast, "message.simplesoundboard.youtube.update_nightly_failed")
+            t.printStackTrace()
+            false
+        }
+    }
+
+    fun setFfmpegPath(path: String): Boolean {
+        val file = validateExecutable(
+            path,
+            expectedName = "ffmpeg",
+            versionArg = "-version",
+            versionRegex = Regex("""ffmpeg version (\S+)""")
+        ) ?: return false
+
+        SoundboardConfig.data.ffmpegPath = file.path
+        return true
+    }
+
+    fun setYtDlpPath(path: String): Boolean {
+        val file = validateExecutable(
+            path,
+            expectedName = "yt-dlp",
+            versionArg = "--version",
+            versionRegex = Regex("""([\d.]+)""")
+        ) ?: return false
+
+        SoundboardConfig.data.ytDlpPath = file.path
+
+        return true
+    }
+
+
+    // ---------------------------
+    // Download into sound dir
+    // ---------------------------
+
+    fun downloadUrlIntoSoundDir(url: String, category: String?): Pair<Boolean, String> {
+        if (url.isBlank()) return Pair(false, "message.simplesoundboard.empty_url")
+        // local var, not a shared field - each call gets its own toast,
+        // so two downloads running at once can't clobber each other's
+        val toast = ToastManager.createProgressToast(Component.literal("Preparing Download..."))
+
+        if (!ensureBinariesPresent(toast)) {
+            return failure(toast, "message.simplesoundboard.binaries_missing")
+        }
+
+        return try {
+            val proc = startDownloadProcess(url, category)
+            streamProcessOutput(proc, toast)
+            awaitProcess(proc, toast)
+        } catch (t: Throwable) {
+            t.printStackTrace()
+            failure(toast, "Exception: ${t.message}")
+        }
+    }
+
+    private fun startDownloadProcess(url: String, category: String?): Process {
+        val soundDir = SimpleSoundboardClient.soundDir.also { if (!it.exists()) it.mkdirs() }
+
+        val outputPattern = if (category == null)
+            File(soundDir, "%(title)s.%(ext)s").absolutePath
+        else
+            File(soundDir, "/$category/%(title)s.%(ext)s").absolutePath
+
+        val args = listOf(
+            ytDlpFile.absolutePath,
+            "--ffmpeg-location", ffmpegFile.absolutePath,
+            "-x", "--audio-format", "mp3",
+            "-o", outputPattern,
+            url
+        )
+
+        return ProcessBuilder(args)
+            .directory(soundDir)
+            .redirectErrorStream(true)
+            .start()
+    }
+
+    private fun streamProcessOutput(proc: Process, toast: TutorialToast) {
+        ToastManager.updateTextAsync(toast, Component.literal("Downloading..."))
+        toast.updateProgress(0.20f)
+
+        logFile.parentFile?.mkdirs()
+        if (logFile.exists() && logFile.length() > maxLogFileBytes) logFile.delete()
+
+        BufferedReader(InputStreamReader(proc.inputStream)).use { reader ->
+            FileWriter(logFile, true).buffered().use { log ->
+                log.appendLine("----- ${LocalDateTime.now()} -----")
+                reader.forEachLine { line ->
+                    log.appendLine(line)
+                    when {
+                        line.startsWith("[download]") -> handleDownloadLine(line, toast)
+                        line.startsWith("[ExtractAudio]") ->
+                            ToastManager.updateTextAsync(toast, Component.literal("Converting to mp3..."))
                     }
+                    logger.debug(line)
                 }
             }
         }
     }
 
-    private fun extractTarXz(archiveFile: File, destDir: File) {
-        try {
-            // Find the root directory name in the tarball
-            val pbList = ProcessBuilder("tar", "-tJf", archiveFile.absolutePath)
-            val procList = pbList.start()
-            val firstEntry = BufferedReader(InputStreamReader(procList.inputStream)).readLine()
-            val rootDir = firstEntry?.substringBefore('/') ?: ""
-            procList.waitFor()
+    private fun handleDownloadLine(line: String, toast: TutorialToast) {
+        val percent = Regex("""([\d.]+)%""")
+            .find(line)
+            ?.groupValues?.get(1)
+            ?.toFloatOrNull()
+            ?.div(100f)
+            ?: return
 
-            if (rootDir.isNotEmpty()) {
-                // Extract everything from the 'bin' directory to destDir, flattening it
-                val pb = ProcessBuilder(
-                    "tar", "-xJf", archiveFile.absolutePath,
-                    "--strip-components=2",
-                    "-C", destDir.absolutePath,
-                    "$rootDir/bin"
-                )
-                pb.start().waitFor(2, TimeUnit.MINUTES)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        // first 20% is reserved for the "preparing" phase
+        if (percent > 0.20f) toast.updateProgress(percent)
+    }
+
+    private fun awaitProcess(proc: Process, toast: TutorialToast): Pair<Boolean, String> {
+        val finished = proc.waitFor(3, TimeUnit.MINUTES)
+
+        if (!finished) {
+            proc.destroyForcibly()
+            return failure(toast, "message.simplesoundboard.youtube.timeout")
+        }
+
+        return if (proc.exitValue() == 0) {
+            ToastManager.updateTextAsync(toast, Component.literal("Download Complete!").withStyle(ChatFormatting.BOLD).withColor(Color(0, 210, 0).rgb))
+            ToastManager.hideToast(toast, 2000L)
+
+            val screen = Minecraft.getInstance().screen
+            if (screen is SoundboardScreen) screen.scanSounds()
+
+            Pair(true, "message.simplesoundboard.download_completed")
+        } else {
+            failure(toast, "message.simplesoundboard.youtube.exit_code")
         }
     }
 
-    @Throws(Exception::class)
-    private fun downloadBinary(urlStr: String, dest: File) {
-        val url = URI(urlStr).toURL()
-        val conn = (url.openConnection() as HttpURLConnection).apply {
+    // ---------------------------
+    // Shared helpers
+    // ---------------------------
+
+    private fun downloadFile(urlStr: String, dest: File) {
+        val conn = (URI(urlStr).toURL().openConnection() as HttpURLConnection).apply {
             instanceFollowRedirects = true
             connectTimeout = 15_000
             readTimeout = 30_000
@@ -152,106 +286,67 @@ class YtDlpManager {
         }
 
         BufferedInputStream(conn.inputStream).use { input ->
-            dest.outputStream().use { output ->
-                input.copyTo(output)
-            }
+            dest.outputStream().use { output -> input.copyTo(output) }
         }
 
         conn.disconnect()
     }
 
-    fun downloadUrlIntoSoundDir(url: String, category: String?): Pair<Boolean, String> {
-        if (url.isBlank()) return failure("message.simplesoundboard.empty_url")
-
-        toast = ToastManager.createProgressToast(Component.literal("Preparing Download..."))
-
-        if (!ensureBinariesPresent()) return failure("message.simplesoundboard.binaries_missing")
-
-        return try {
-            val proc = startDownloadProcess(url, category)
-            streamProcessOutput(proc)
-            awaitProcess(proc)
-        } catch (t: Throwable) {
-            t.printStackTrace()
-            failure("Exception: ${t.message}")
-        }
-    }
-
-    private fun startDownloadProcess(url: String, category: String?): Process {
-        toast.updateProgress(0.20f)
-
-        val soundDir = SimpleSoundboardClient.soundDir.also { if (!it.exists()) it.mkdirs() }
-
-        var outputPattern: String
-        if (category == null) {
-            outputPattern = File(soundDir, "%(title)s.%(ext)s").absolutePath
-        } else {
-            outputPattern = File(soundDir, "/$category/%(title)s.%(ext)s").absolutePath
-        }
-
-        val args = listOf(
-            binFile().absolutePath,
-            "--ffmpeg-location", ffmpegBinFile().absolutePath,
-            "-x", "--audio-format", "mp3",
-            "-o", outputPattern,
-            url
-        )
-
-        return ProcessBuilder(args)
-            .directory(soundDir)
-            .redirectErrorStream(true)
-            .start()
-    }
-
-    private fun streamProcessOutput(proc: Process) {
-        ToastManager.changeToastText(toast, Component.literal("Downloading..."))
-
-        BufferedReader(InputStreamReader(proc.inputStream)).use { reader ->
-            reader.forEachLine { line ->
-                when {
-                    line.startsWith("[download]") -> handleDownloadLine(line)
-                    line.startsWith("[ExtractAudio]") ->
-                        ToastManager.changeToastText(toast, Component.literal("Converting to mp3..."))
+    private fun extractZip(zipFile: File, destDir: File) {
+        java.util.zip.ZipFile(zipFile).use { zip ->
+            zip.entries().asSequence().forEach { entry ->
+                val name = entry.name
+                if (!entry.isDirectory && (name.contains("/bin/") || name.startsWith("bin/"))) {
+                    val fileName = name.substringAfterLast('/')
+                    zip.getInputStream(entry).use { input ->
+                        File(destDir, fileName).outputStream().use { output -> input.copyTo(output) }
+                    }
                 }
-                println(line)
             }
         }
     }
 
-    private fun handleDownloadLine(line: String) {
-        val percent = Regex("""([\d.]+)%""")
-            .find(line)
-            ?.groupValues?.get(1)
-            ?.toFloatOrNull()
-            ?.div(100f)
-            ?: return
+    private fun extractTarXz(archiveFile: File, destDir: File) {
+        val listProc = ProcessBuilder("tar", "-tJf", archiveFile.absolutePath).start()
+        val rootDir = BufferedReader(InputStreamReader(listProc.inputStream)).readLine()?.substringBefore('/') ?: ""
+        listProc.waitFor()
 
-        if (percent > 0.20f) toast.updateProgress(percent)
-    }
-
-    private fun awaitProcess(proc: Process): Pair<Boolean, String> {
-        val finished = proc.waitFor(3, TimeUnit.MINUTES)
-
-        if (!finished) {
-            proc.destroyForcibly()
-            return failure("message.simplesoundboard.youtube.timeout")
-        }
-
-        ToastManager.hideTutorialToastIn(toast, 2000L)
-
-        return if (proc.exitValue() == 0) {
-            ToastManager.changeToastText(toast, Component.literal("Download Complete!")
-                .withStyle(ChatFormatting.BOLD).withColor(Color(0, 210, 0).rgb))
-            success("message.simplesoundboard.download_completed")
-        } else {
-            ToastManager.changeToastText(toast, Component.literal("Error while downloading!")
-                .withStyle(ChatFormatting.RED))
-            failure("message.simplesoundboard.youtube.exit_code")
+        if (rootDir.isNotEmpty()) {
+            ProcessBuilder(
+                "tar", "-xJf", archiveFile.absolutePath,
+                "--strip-components=2",
+                "-C", destDir.absolutePath,
+                "$rootDir/bin"
+            ).start().waitFor(2, TimeUnit.MINUTES)
         }
     }
 
-    // Convenience aliases for readability
-    private fun success(msg: String) = Pair(true, msg)
-    private fun failure(msg: String) = Pair(false, msg)
+    private fun readVersion(binary: File, versionArg: String, regex: Regex): String? {
+        if (!binary.exists() || !binary.canExecute()) return null
+        return try {
+            val proc = ProcessBuilder(binary.absolutePath, versionArg).redirectErrorStream(true).start()
+            val output = proc.inputStream.bufferedReader().readText()
+            proc.waitFor(10, TimeUnit.SECONDS)
+            regex.find(output)?.groupValues?.get(1)
+        } catch (t: Throwable) {
+            null
+        }
+    }
 
+    private fun validateExecutable(path: String, expectedName: String, versionArg: String, versionRegex: Regex): File? {
+        val file = File(path)
+
+        if (!file.exists()) return null
+        if (file.nameWithoutExtension != expectedName) return null
+        if (!file.canExecute()) return null
+        readVersion(file, versionArg, versionRegex) ?: return null
+
+        return file
+    }
+
+    private fun failure(toast: TutorialToast?, msg: String): Pair<Boolean, String> {
+        ToastManager.updateTextAsync(toast, Component.literal(msg).withStyle(ChatFormatting.RED))
+        ToastManager.hideToast(toast, 2000L)
+        return Pair(false, msg)
+    }
 }

@@ -4,6 +4,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.input.CharacterEvent
 import net.minecraft.client.input.KeyEvent
 import net.minecraft.client.input.MouseButtonEvent
+import net.minecraft.network.chat.Component
 import org.lwjgl.glfw.GLFW
 
 abstract class ScreenOverlay(
@@ -28,6 +29,10 @@ abstract class ScreenOverlay(
 
     protected open fun onShow() {}
     protected open fun onHide() {}
+
+    fun getMid(name: Component): Int {
+        return screenWidth / 2 - font.width(name) / 2
+    }
 
     fun render(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, delta: Float) {
         if (!isVisible) return
