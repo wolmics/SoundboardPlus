@@ -41,7 +41,7 @@ class CategoryConfigOverlay(ctx: OverlayContext, private val title: Component, p
         graphics.centeredText(font, title, screenWidth / 2, y + 14, 0xFFFFFF)
 
         confirmButton.setPosition(screenWidth / 2 - 50, y + overlayHeight - 28)
-        label.setPosition((screenWidth - font.width(label.message)) / 2, y + 8);
+        label.setPosition((screenWidth - font.width(label.message)) / 2, y + 8)
 
         if (categoryNameField.value.isEmpty()) {
             categoryNameField.setSuggestion("Enter the category name")

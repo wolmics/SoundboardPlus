@@ -18,10 +18,18 @@ Soundboard+ lets you play `.mp3` files directly into your voice chat stream in-g
 
 - **MP3 Support** — Play standard `.mp3` files directly through voice chat.
 - **Categories** — Organize your sounds into custom categories.
-- **Built-in Downloads** — Uses `yt-dlp` to download audio from supported sources.
+- **Built-in Downloads** — Uses [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) to download audio from supported sources.
 - **Dual Volume Controls** — **Player Volume** controls how loud others hear the sound; **Local Volume** controls how loud you hear it.
-- **Hotkeys** — Assign hotkeys to individual sounds for quick playback.
+- **Hotkeys** — Bind hotkeys to individual sounds for instant playback.
 - **Progress Bar** — Supports seeking and dragging to any point in a track.
+
+### Addtional Features
+
+- Rename sounds to keep your library organized
+- Drag and drop sounds between categories
+- Sort sounds on different filters
+- Mark sounds as favourites for quick access
+- Loop sounds for continuous playback
 
 ***
 
@@ -31,7 +39,7 @@ Soundboard+ lets you play `.mp3` files directly into your voice chat stream in-g
 - Simple Voice Chat
 - Fabric Language Kotlin
 
-> The mod automatically downloads `yt-dlp` and `ffmpeg`.
+> The mod automatically downloads [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) and [`ffmpeg`](https://github.com/BtbN/FFmpeg-Builds).
 
 ***
 
@@ -40,12 +48,12 @@ Soundboard+ lets you play `.mp3` files directly into your voice chat stream in-g
 ### 1. Generate Folders
 
 - Launch the game once
-- Navigate to your `.minecraft` folder
-- Open the `soundboard` directory
 
 ### 2. Add Sounds
 
-- Drag and drop `.mp3` files into the folder, or download them via the **Downloads** tab
+- Open `Download` tab
+  - Download a Song from almost every source
+  - Open the soundboard directory and drag & drop `.mp3` files into the director
 
 ### 3. Use In-Game
 
@@ -59,10 +67,10 @@ Soundboard+ lets you play `.mp3` files directly into your voice chat stream in-g
 
 Access settings via the **Config** button in the GUI:
 
-- **Play Locally** — Toggle whether you hear sounds yourself
 - **Play while Muted** — Toggle whether sounds play while your mic is muted
-- **Play Only One Sound at a Time** — Toggle whether a new sound stops the currently playing one
+- **No overlapping sounds** — Toggle whether a new sound stops the currently playing one
 - **Show Progress Bar** — Toggle visibility of the progress bar
+- **Save Last Category & Page** — Save the last Category you opened
 
 ***
 

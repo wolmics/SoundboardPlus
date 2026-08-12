@@ -8,6 +8,7 @@ import de.maxhenkel.voicechat.api.events.MergeClientSoundEvent
 import javazoom.jl.decoder.*
 import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
+import org.wolmics.soundboardplus.config.SoundData
 import org.wolmics.soundboardplus.config.SoundboardConfig
 import org.wolmics.soundboardplus.util.ToastManager
 import java.io.BufferedInputStream
@@ -62,30 +63,30 @@ object SoundboardAudioSystem {
     }
 
     // Returns playback progress (0.0–1.0) for the named sound, or null if not playing.
-    fun getProgress(name: String): Double? =
-        activeSounds.find { it.name == name && it.playbackState == PlaybackState.PLAYING }?.progress
+    fun getProgress(id: Int): Double? =
+        activeSounds.find { it.id == id && it.playbackState == PlaybackState.PLAYING }?.progress
 
     // Returns the total sample count for the named sound, or null if not playing.
-    fun getTotalSamples(name: String): Int? =
-        activeSounds.find { it.name == name && it.playbackState == PlaybackState.PLAYING }?.totalSamples
+    fun getTotalSamples(id: Int): Int? =
+        activeSounds.find { it.id == id && it.playbackState == PlaybackState.PLAYING }?.totalSamples
 
     // Seeks the named sound to the given fraction (0.0 = start, 1.0 = end).
-    fun seekTo(name: String, fraction: Double) {
-        activeSounds.find { it.name == name && it.playbackState == PlaybackState.PLAYING }?.seekTo(fraction)
+    fun seekTo(id: Int, fraction: Double) {
+        activeSounds.find { it.id == id && it.playbackState == PlaybackState.PLAYING }?.seekTo(fraction)
     }
 
     // Returns the name of the currently playing sound if exactly one is playing, else null.
-    fun getSinglePlayingName(): String? =
+    fun getSinglePlayingId(): Int? =
         activeSounds.filter { it.playbackState == PlaybackState.PLAYING }
-            .takeIf { it.size == 1 }?.first()?.name
+            .takeIf { it.size == 1 }?.first()?.sound?.id
 
     // Returns whether the named sound is set to repeat, or null if it isn't active.
-    fun getSoundRepeat(name: String): Boolean? =
-        activeSounds.find { it.name == name }?.repeat
+    fun getSoundRepeat(id: Int): Boolean? =
+        activeSounds.find { it.id == id }?.repeat
 
     // Sets the repeat flag on the named sound.
-    fun setSoundRepeat(name: String, repeat: Boolean) {
-        activeSounds.find { it.name == name }?.repeat = repeat
+    fun setSoundRepeat(id: Int, repeat: Boolean) {
+        activeSounds.find { it.id == id }?.repeat = repeat
     }
 
     // Called every audio frame by the voice chat engine. Mixes all active sounds
@@ -97,7 +98,6 @@ object SoundboardAudioSystem {
 
         val mixedPlayer = ShortArray(FRAME_SIZE)
         val mixedLocal  = ShortArray(FRAME_SIZE)
-        val playLocally = SoundboardConfig.data.playLocally
         var hasAudio = false
 
         val iterator = activeSounds.iterator()
@@ -113,13 +113,13 @@ object SoundboardAudioSystem {
             for (i in 0 until count) {
                 val s = sound.readNext()
                 mixSample(mixedPlayer, i, s, playerVolume)
-                if (playLocally) mixSample(mixedLocal, i, s, localVolume)
+                mixSample(mixedLocal, i, s, localVolume)
             }
         }
 
         if (hasAudio) {
             event.mergeAudio(mixedPlayer)
-            if (playLocally) localAudioChannel?.play(mixedLocal)
+            localAudioChannel?.play(mixedLocal)
         }
     }
 
@@ -131,11 +131,25 @@ object SoundboardAudioSystem {
             if (activeSounds.isNotEmpty()) activeSounds.clear()
             return false
         }
+
+        // Checks if playback no songs are playing OR its paused
+        // If its both, disable pause (no songs to play)
+
         if (activeSounds.isEmpty() || playbackPaused) {
             if (activeSounds.isEmpty() && playbackPaused) playbackPaused = false
             return false
         }
         return true
+    }
+
+    // Returns True if there are no sounds active (Does not count paused sounds)
+    fun activeSoundsEmpty(): Boolean {
+        return activeSounds.isEmpty()
+    }
+
+    fun cyclePlaySound(sound: SoundData) {
+        if (isPlaying(sound)) stop(sound)
+        else playFile(sound)
     }
 
     // Adds a scaled sample into the output buffer with clamping to prevent overflow.
@@ -146,7 +160,7 @@ object SoundboardAudioSystem {
 
     // Starts playing a file. Short files (<5 min) are fully decoded into memory;
     // longer files are streamed from disk via a ring buffer on a background thread.
-    fun playFile(file: File) {
+    fun playFile(soundData: SoundData) {
         val api = clientApi
         if (api == null) {
             ToastManager.createToast(Component.literal("§cVoice chat not connected!"), 1500)
@@ -156,10 +170,17 @@ object SoundboardAudioSystem {
             ToastManager.createToast(Component.literal("§cCannot play soundboard while muted!"), 1500)
             return
         }
-        if (SoundboardConfig.data.playOnlyOne && activeSounds.isNotEmpty()) activeSounds.clear()
+        if (SoundboardConfig.data.playOnlyOne && activeSounds.isNotEmpty()) {
+            activeSounds.clear()
+            playbackPaused = false
+        }
 
-        val sound = PlayingSound(file.name)
+        val sound = PlayingSound(soundData)
         activeSounds.add(sound)
+
+        soundData.playCount++
+
+        val file = File(soundData.filePath)
 
         CompletableFuture.runAsync {
             try {
@@ -241,17 +262,15 @@ object SoundboardAudioSystem {
         return out
     }
 
-    fun isPlaying(file: String): Boolean =
-        activeSounds.any { it.name == file && it.playbackState != PlaybackState.STOPPED }
+    fun isPlaying(sound: SoundData): Boolean =
+        activeSounds.any { it.sound == sound && it.playbackState != PlaybackState.STOPPED }
 
-    fun stop(file: String) {
-        activeSounds.filter { it.name == file }.forEach { it.stop() }
-        activeSounds.removeIf { it.name == file }
-    }
+    fun isPlaying(id: Int): Boolean =
+        activeSounds.any { it.sound.id == id && it.playbackState != PlaybackState.STOPPED }
 
-    fun setVolume(localVol: Float, playerVol: Float) {
-        localVolume = localVol
-        playerVolume = playerVol
+    fun stop(sound: SoundData) {
+        activeSounds.filter { it.sound == sound }.forEach { it.stop() }
+        activeSounds.removeIf { it.sound == sound }
     }
 
     fun stopAll() {
@@ -266,7 +285,8 @@ object SoundboardAudioSystem {
     // Long files:  a background decode thread fills a ring buffer; the mixer
     //              drains it one sample at a time via readNext().
     // =========================================================================
-    private class PlayingSound(val name: String) {
+    private class PlayingSound(val sound: SoundData) {
+        val id = sound.id
 
         // Short-file state
         private var samples: ShortArray = ShortArray(0)
