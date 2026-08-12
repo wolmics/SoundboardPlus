@@ -12,6 +12,7 @@ import org.wolmics.soundboardplus.config.SoundboardConfig
 import org.wolmics.soundboardplus.gui.SoundboardScreen
 import org.lwjgl.glfw.GLFW
 import org.wolmics.soundboardplus.util.KeyEventBus
+import org.wolmics.soundboardplus.util.ToastManager
 import java.io.File
 
 class SimpleSoundboardClient : ClientModInitializer {
@@ -57,11 +58,13 @@ class SimpleSoundboardClient : ClientModInitializer {
         if (!modDependencyDir.exists())
             modDependencyDir.mkdirs()
 
+        SoundboardConfig.load()
+
         ClientTickEvents.END_CLIENT_TICK.register { client: Minecraft ->
             if (client.player == null) return@register
 
             if (OPEN_GUI_KEY.consumeClick()) {
-                client.setScreenAndShow(SoundboardScreen())
+                client.gui.setScreen(SoundboardScreen())
             }
 
             if (PAUSE_PLAYBACK_KEY.consumeClick()) {
@@ -69,6 +72,7 @@ class SimpleSoundboardClient : ClientModInitializer {
             }
 
             KeyEventBus.handleSoundKeybinds(client)
+            ToastManager.tick()
         }
 
         ClientLifecycleEvents.CLIENT_STOPPING.register {
