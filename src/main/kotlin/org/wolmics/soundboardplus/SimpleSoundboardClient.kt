@@ -5,14 +5,13 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper
 import net.fabricmc.loader.api.FabricLoader
-import net.minecraft.client.MinecraftClient
 import net.minecraft.client.option.KeyBinding
-import net.minecraft.client.util.InputUtil
 import net.minecraft.util.Identifier
 import org.wolmics.soundboardplus.config.SoundboardConfig
 import org.wolmics.soundboardplus.gui.SoundboardScreen
 import org.lwjgl.glfw.GLFW
 import org.wolmics.soundboardplus.util.KeyEventBus
+import org.wolmics.soundboardplus.util.ToastManager
 import java.io.File
 
 class SimpleSoundboardClient : ClientModInitializer {
@@ -25,8 +24,6 @@ class SimpleSoundboardClient : ClientModInitializer {
 
         lateinit var OPEN_GUI_KEY: KeyBinding
         lateinit var PAUSE_PLAYBACK_KEY: KeyBinding
-
-        private val pressedKeys = mutableSetOf<Int>()
 
         val soundDir = File(FabricLoader.getInstance().gameDir.toFile(), "soundboard")
         val modDir = File(FabricLoader.getInstance().gameDir.toFile(), "soundboard")
@@ -59,9 +56,12 @@ class SimpleSoundboardClient : ClientModInitializer {
         if (!modDependencyDir.exists())
             modDependencyDir.mkdirs()
 
+        SoundboardConfig.load()
+
         ClientTickEvents.END_CLIENT_TICK.register { client ->
             if (client.player == null) return@register
 
+            ToastManager.tick()
             if (OPEN_GUI_KEY.wasPressed()) {
                 client.setScreen(SoundboardScreen())
             }

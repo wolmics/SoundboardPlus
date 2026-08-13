@@ -15,7 +15,7 @@ import org.wolmics.soundboardplus.util.ToastManager
 import org.lwjgl.glfw.GLFW
 import java.util.concurrent.CompletableFuture
 
-class YtDlpOverlay(ctx: OverlayContext, private val title: Text) : ScreenOverlay(ctx, overlayWidth = 200, overlayHeight = 90) {
+class YtDlpOverlay(ctx: OverlayContext, title: Text) : ScreenOverlay(ctx, overlayWidth = 200, overlayHeight = 90) {
     private val titleLabel = TextWidget(title, textRenderer)
     private var category: String? = null
 
@@ -73,7 +73,7 @@ class YtDlpOverlay(ctx: OverlayContext, private val title: Text) : ScreenOverlay
     }
 
     override fun onKeyPressed(input: KeyInput): Boolean {
-        if (input.keycode == GLFW.GLFW_KEY_ENTER) {
+        if (input.key == GLFW.GLFW_KEY_ENTER) {
             hide()
             return true
         }
@@ -96,7 +96,6 @@ class YtDlpOverlay(ctx: OverlayContext, private val title: Text) : ScreenOverlay
         }
 
         urlField.render(context, mouseX, mouseY, delta)
-        // Download button
         downloadButton.render(context, mouseX, mouseY, delta)
         openFolderButton.render(context, mouseX, mouseY, delta)
     }

@@ -4,6 +4,7 @@ import net.minecraft.client.gui.Click
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.client.input.CharInput
 import net.minecraft.client.input.KeyInput
+import net.minecraft.text.Text
 import org.lwjgl.glfw.GLFW
 
 abstract class ScreenOverlay(
@@ -23,13 +24,15 @@ abstract class ScreenOverlay(
     protected val x get() = screenWidth / 2 - overlayWidth / 2
     protected val y get() = screenHeight / 2 - overlayHeight / 2
 
-    fun init() {}
-
     fun show() { isVisible = true; onShow() }
     fun hide() { isVisible = false; onDismiss?.invoke(); onHide() }
 
     protected open fun onShow() {}
     protected open fun onHide() {}
+
+    fun getMid(name: Text): Int {
+        return screenWidth / 2 - textRenderer.getWidth(name) / 2
+    }
 
     fun render(context: DrawContext, mouseX: Int, mouseY: Int, delta: Float) {
         if (!isVisible) return

@@ -2,36 +2,46 @@ package org.wolmics.soundboardplus.util
 
 import net.minecraft.client.MinecraftClient
 import net.minecraft.client.toast.SystemToast
+import net.minecraft.client.toast.Toast
 import net.minecraft.client.toast.TutorialToast
 import net.minecraft.text.Text
 import org.wolmics.soundboardplus.mixin.TutorialToastAccessor
-import java.util.Timer
-import java.util.TimerTask
 
 object ToastManager {
     private val client: MinecraftClient = MinecraftClient.getInstance()
+    private val pendingHideToasts = mutableMapOf<Toast, Long>()
+
+    fun tick() {
+        if (pendingHideToasts.isEmpty()) return
+        val now = System.currentTimeMillis()
+        val iterator = pendingHideToasts.iterator()
+        while (iterator.hasNext()) {
+            val (toast, hideTime) = iterator.next()
+            if (now >= hideTime) {
+                if (toast is SystemToast) toast.hide()
+                else if (toast is TutorialToast) toast.hide()
+                iterator.remove()
+            }
+        }
+    }
 
     fun createToast(text: Text, ms: Long) {
-        val toast = SystemToast.create(client, SystemToast.Type.FILE_DROP_FAILURE, Text.literal("Better Soundboard"), text)
+        val toast = SystemToast.create(client, SystemToast.Type.FILE_DROP_FAILURE, Text.literal("Soundboard+"), text)
         client.toastManager.add(toast)
-        hideSystemToastIn(toast, ms)
+        hideToast(toast, ms)
     }
 
     fun createProgressToast(text: Text): TutorialToast {
         val toast = TutorialToast(
             client.textRenderer,
             TutorialToast.Type.SOCIAL_INTERACTIONS,
-            Text.literal("Better Soundboard"),
+            Text.literal("Soundboard+"),
             Text.literal(""),
             true
         )
         client.toastManager.add(toast)
 
-        // Update text immediately to test if the accessor works
-        val textList = (toast as TutorialToastAccessor).getText()
-        textList.clear()
-        textList.add(text.asOrderedText())
-
+        changeToastText(toast, text)
         toast.setProgress(0.0f)
         return toast
     }
@@ -42,27 +52,13 @@ object ToastManager {
         textList.add(text.asOrderedText())
     }
 
-    fun changeToastProgress(toast: TutorialToast, progress: Float) {
-        toast.setProgress(progress)
+    fun updateTextAsync(toast: Toast?, text: Text) {
+        val tutorialToast = toast as? TutorialToast ?: return
+        MinecraftClient.getInstance().execute { changeToastText(tutorialToast, text) }
     }
 
-    fun hideSystemToastIn(toast: SystemToast, ms: Long = 1000L) {
-        Timer().schedule(object : TimerTask() {
-            override fun run() {
-                MinecraftClient.getInstance().execute {
-                    toast.hide() // works for ANY Toast implementation
-                }
-            }
-        }, ms)
-    }
-
-    fun hideTutorialToastIn(toast: TutorialToast, ms: Long = 1000L) {
-        Timer().schedule(object : TimerTask() {
-            override fun run() {
-                MinecraftClient.getInstance().execute {
-                    toast.hide() // works for ANY Toast implementation
-                }
-            }
-        }, ms)
+    fun hideToast(toast: Toast?, ms: Long) {
+        if (toast == null) return
+        pendingHideToasts[toast] = System.currentTimeMillis() + ms
     }
 }

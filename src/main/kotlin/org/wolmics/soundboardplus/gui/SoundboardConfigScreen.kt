@@ -1,5 +1,6 @@
 package org.wolmics.soundboardplus.gui
 
+import net.minecraft.client.MinecraftClient
 import net.minecraft.client.gui.Click
 import net.minecraft.client.gui.screen.Screen
 import net.minecraft.client.gui.widget.ButtonWidget
@@ -17,7 +18,24 @@ class SoundboardConfigScreen(private val parent: Screen?) : Screen(Text.literal(
     private val originalAuthorGithubUrl: String = "https://github.com/0x1bd/SimpleSoundboard"
     private val forkAuthorGithubUrl: String = "https://github.com/wolmics/SoundboardPlus"
 
+    private var redoRender: Boolean = false
+
     override fun init() {
+        renderButtons()
+        renderAuthor()
+
+        addDrawableChild(
+            ButtonWidget.builder(Text.literal("Debug")) { MinecraftClient.getInstance().setScreen(DebugScreen(this)) }
+                .position(width - 90, 10)
+                .size(80, 20)
+                .build()
+        )
+    }
+
+    // Init Widgets
+    private fun renderButtons() {
+        var y = 50
+
         addDrawableChild(ButtonWidget.builder(Text.literal("Back")) { close() }
             .position(width / 2 - 100, height - 30)
             .size(200, 20)
@@ -25,37 +43,44 @@ class SoundboardConfigScreen(private val parent: Screen?) : Screen(Text.literal(
         )
 
         addDrawableChild(
-            CyclingButtonWidget.onOffBuilder(SoundboardConfig.data.playLocally)
-                .build(width / 2 - 100, 50, 200, 20, Text.literal("Play Locally")) { _, value ->
-                    SoundboardConfig.data.playLocally = value
-                    SoundboardConfig.save()
-                }
-        )
-
-        addDrawableChild(
             CyclingButtonWidget.onOffBuilder(SoundboardConfig.data.playWhileMuted)
-                .build(width / 2 - 100, 75, 200, 20, Text.literal("Play While Muted")) { _, value ->
+                .build(width / 2 - 100, y, 200, 20, Text.literal("Play While Muted")) { _, value ->
                     SoundboardConfig.data.playWhileMuted = value
                     SoundboardConfig.save()
                 }
         )
+        y += 25
 
         addDrawableChild(
             CyclingButtonWidget.onOffBuilder(SoundboardConfig.data.playOnlyOne)
-                .build(width / 2 - 100, 100, 200, 20, Text.literal("No overlapping sounds")) { _, value ->
+               .build(width / 2 - 100, y, 200, 20, Text.literal("No overlapping sounds")) { _, value ->
                     SoundboardConfig.data.playOnlyOne = value
                     SoundboardConfig.save()
                 }
         )
+        y += 25
 
         addDrawableChild(
             CyclingButtonWidget.onOffBuilder(SoundboardConfig.data.showProgressBar)
-                .build(width / 2 - 100, 125, 200, 20, Text.literal("Show Progress Bar")) { _, value ->
+                .build(width / 2 - 100, y, 200, 20, Text.literal("Show Progress Bar")) { _, value ->
                     SoundboardConfig.data.showProgressBar = value
+                    SoundboardConfig.save()
+
+                    redoRender = true
+                }
+        )
+        y += 25
+
+        addDrawableChild(
+            CyclingButtonWidget.onOffBuilder(SoundboardConfig.data.saveLastCategory)
+                .build(width / 2 - 100, y, 200, 20, Text.literal("Save Last Category & Page")) { _, value ->
+                    SoundboardConfig.data.saveLastCategory = value
                     SoundboardConfig.save()
                 }
         )
+    }
 
+    private fun renderAuthor() {
         val originalAuthor = TextWidget(Text.literal(originalAuthorText), textRenderer)
         originalAuthor.setPosition(10, height - 35)
         addDrawableChild(originalAuthor)
@@ -65,8 +90,8 @@ class SoundboardConfigScreen(private val parent: Screen?) : Screen(Text.literal(
         addDrawableChild(forkAuthor)
     }
 
-    override fun mouseClicked(click: Click?, double: Boolean): Boolean {
-        if (click?.button() == 0) { // left click only
+    override fun mouseClicked(click: Click, double: Boolean): Boolean {
+        if (click.button() == 0) { // left click only
             val origWidth = textRenderer.getWidth(originalAuthorText)
             if (click.x in 10.0..(10.0 + origWidth) && click.y in (height - 35.0)..(height - 25.0)) {
                 Util.getOperatingSystem().open(URI(originalAuthorGithubUrl))
@@ -81,6 +106,10 @@ class SoundboardConfigScreen(private val parent: Screen?) : Screen(Text.literal(
     }
 
     override fun close() {
-        client?.setScreen(SoundboardScreen())
+        if (redoRender) { // Some Settings might change the look of SoundboardScreen -> redo Render
+            client.setScreen(SoundboardScreen(null))
+        } else {
+            client.setScreen(parent)
+        }
     }
 }
