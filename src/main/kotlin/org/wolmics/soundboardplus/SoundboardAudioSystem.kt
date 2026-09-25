@@ -27,6 +27,8 @@ object SoundboardAudioSystem {
     private var clientApi: VoicechatClientApi? = null
     private var localAudioChannel: ClientStaticAudioChannel? = null
 
+    private var audioDecoder = SoundboardConfig.data.selectedAudioDecoder
+
     private val activeSounds = ConcurrentLinkedQueue<PlayingSound>()
     private const val FRAME_SIZE = 960
     private const val SAMPLE_RATE = 48000
@@ -60,6 +62,15 @@ object SoundboardAudioSystem {
             clientApi = null
             localAudioChannel = null
         }
+    }
+
+    fun setAudioDecoder(audioDecoder: AudioDecoder) {
+        stopAll()
+        this.audioDecoder = audioDecoder
+    }
+
+    fun getAudioDecoder(): AudioDecoder {
+        return this.audioDecoder
     }
 
     // Returns playback progress (0.0–1.0) for the named sound, or null if not playing.
@@ -184,7 +195,8 @@ object SoundboardAudioSystem {
 
         CompletableFuture.runAsync {
             try {
-                if (shouldStream(file)) {
+            // Checks the selected audio decoder and manages the automatic setting
+            if (audioDecoder == AudioDecoder.JLAYER || (audioDecoder == AudioDecoder.AUTOMATIC && shouldStream(file))) {
                     // streamLoop runs directly here — no second thread needed.
                     sound.streamLoop(file)
                 } else {
@@ -583,6 +595,12 @@ object SoundboardAudioSystem {
         v = v or (v ushr 8); v = v or (v ushr 16)
         return v + 1
     }
+}
+
+enum class AudioDecoder(val displayName: String) {
+    AUTOMATIC("Automatic"),
+    SIMPLE_VOICECHAT("Simple Voicechat Decoder"),
+    JLAYER("JLayer")
 }
 
 enum class PlaybackState { LOADING, PLAYING, STOPPED }

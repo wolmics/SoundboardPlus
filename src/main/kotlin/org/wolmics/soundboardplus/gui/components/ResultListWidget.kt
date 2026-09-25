@@ -12,6 +12,7 @@ import net.minecraft.client.input.KeyEvent
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
 import net.minecraft.network.chat.TextColor
+import net.minecraft.util.Util
 import org.lwjgl.glfw.GLFW
 import org.wolmics.soundboardplus.SoundboardAudioSystem
 import org.wolmics.soundboardplus.config.SoundboardConfig
@@ -65,6 +66,8 @@ class ResultListWidget(
         private var renaming: Boolean = false
         private var renamedName: String = sound.name
 
+        private var cursorIndex: Int = 0
+
         init {
             favBtn = Button.builder(
                 Component.literal(if (sound.favorite) "★" else "☆")
@@ -112,8 +115,20 @@ class ResultListWidget(
             if (!renaming) {
                 graphics.text(font, name, x + 25, textY, textColor, true)
             } else {
-                val text: Component = Component.literal(renamedName + "_").withStyle(ChatFormatting.ITALIC)
+                val blinkVisible = (Util.getMillis() / 400) % 2 == 0L // faster blink (300ms instead of 500ms)
+
+                val text = Component.literal(renamedName).withStyle(ChatFormatting.ITALIC)
                 graphics.text(font, text, x + 25, textY, textColor, true)
+
+                if (blinkVisible) {
+                    val before = renamedName.substring(0, cursorIndex)
+                    val cursorX = x - 1 + 25 + font.width(before)
+                    val cursorY1 = textY - 1
+                    val cursorY2 = textY + font.lineHeight
+
+                    // thick vanilla-style cursor bar, 2px wide
+                    graphics.fill(cursorX, cursorY1, cursorX + 1, cursorY2, 0xFFFFFFFF.toInt())
+                }
             }
 
             // Buttons
@@ -133,7 +148,11 @@ class ResultListWidget(
             if (playBtn.mouseClicked(click, doubled)) return true
 
             // 1 == right-click
-            renaming = click.button() == 1
+            val wasRenaming = renaming
+            if (click.button() == 1) {
+                renaming = !wasRenaming
+                if (renaming) cursorIndex = renamedName.length
+            }
 
             onEntryMouseDown(sound, click.x.toInt(), click.y.toInt())
 
@@ -144,13 +163,20 @@ class ResultListWidget(
         }
 
         override fun charTyped(event: CharacterEvent): Boolean {
-            if (renaming) renamedName += Char(event.codepoint())
+            if (renaming) {
+                val newChar = Char(event.codepoint())
+                renamedName = renamedName.substring(0, cursorIndex) + newChar + renamedName.substring(cursorIndex)
+                cursorIndex++
+            }
             return super.charTyped(event)
         }
 
         override fun keyPressed(event: KeyEvent): Boolean {
             val key = event.key()
-            println(key)
+
+            if (renaming && key == GLFW.GLFW_KEY_ESCAPE) {
+                renaming = false
+            }
 
             if (renaming && key == GLFW.GLFW_KEY_ENTER) {
                 if (sound.name == renamedName) return super.keyPressed(event)
@@ -170,7 +196,20 @@ class ResultListWidget(
                 }
             }
 
-            if (renaming && key == GLFW.GLFW_KEY_BACKSPACE) renamedName = renamedName.dropLast(1)
+            // Renaming: Delete char
+            if (renaming && key == GLFW.GLFW_KEY_BACKSPACE && cursorIndex > 0) {
+                renamedName = renamedName.substring(0, cursorIndex - 1) + renamedName.substring(cursorIndex)
+                cursorIndex -= 1
+            }
+
+            // Renaming: Move cursor around
+            if (renaming && (key == GLFW.GLFW_KEY_LEFT || key == GLFW.GLFW_KEY_RIGHT)) {
+                val direction = if (key == GLFW.GLFW_KEY_RIGHT) 1 else -1
+                val newIndex = cursorIndex + direction
+                if (newIndex in 0..renamedName.length) {
+                    cursorIndex = newIndex
+                }
+            }
 
             return super.keyPressed(event)
         }

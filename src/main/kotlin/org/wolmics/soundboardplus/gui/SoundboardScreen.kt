@@ -552,6 +552,12 @@ class SoundboardScreen(
             return true
         }
 
+        // If an entry is currently being renamed, it owns the keystroke.
+        val renamingEntry = resultsList.renamingEntry()
+        if (renamingEntry != null) {
+            return renamingEntry.keyPressed(input)
+        }
+
         if (input.key == GLFW.GLFW_KEY_BACKSPACE && selectedSound == null && selectedCategory != null && !queryField.isFocused) {
             deleteConfirmOverlay.setCategory(selectedCategory!!)
             deleteConfirmOverlay.show()
@@ -581,12 +587,6 @@ class SoundboardScreen(
             return true
         }
         if (input.isEscape) { onClose(); return true }
-
-        // If an entry is currently being renamed, it owns the keystroke.
-        val renamingEntry = resultsList.renamingEntry()
-        if (renamingEntry != null) {
-            return renamingEntry.keyPressed(input)
-        }
 
         // Otherwise the search field should have focus and take the key.
         if (!queryField.isFocused) {
