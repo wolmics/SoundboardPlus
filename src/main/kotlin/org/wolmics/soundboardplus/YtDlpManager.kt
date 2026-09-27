@@ -2,14 +2,13 @@ package org.wolmics.soundboardplus
 
 import net.minecraft.ChatFormatting
 import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.components.toasts.TutorialToast
 import net.minecraft.network.chat.Component
 import net.minecraft.util.Util
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.wolmics.soundboardplus.config.SoundboardConfig
 import org.wolmics.soundboardplus.gui.SoundboardScreen
-import org.wolmics.soundboardplus.util.ToastManager
+import org.wolmics.soundboardplus.util.ToastRenderer
 import java.awt.Color
 import java.io.BufferedInputStream
 import java.io.BufferedReader
@@ -65,15 +64,15 @@ class YtDlpManager {
     fun ytDlpVersion(): String? = readVersion(ytDlpFile, "--version", Regex("""([\d.]+)"""))
     fun ffmpegVersion(): String? = readVersion(ffmpegFile, "-version", Regex("""ffmpeg version (\S+)"""))
 
-    fun ensureBinariesPresent(toast: TutorialToast? = null): Boolean {
+    fun ensureBinariesPresent(toast: ToastRenderer.ProgressToast? = null): Boolean {
         val ytDlpOk = isYtDlpInstalled() || installYtDlp(toast)
         val ffmpegOk = isFfmpegInstalled() || installFfmpeg(toast)
         return ytDlpOk && ffmpegOk
     }
 
-    fun installYtDlp(toast: TutorialToast? = null): Boolean {
+    fun installYtDlp(toast: ToastRenderer.ProgressToast? = null): Boolean {
         return try {
-            ToastManager.updateTextAsync(toast, Component.literal("Downloading yt-dlp..."))
+            toast?.updateMessage("Downloading yt-dlp...")
             downloadFile(ytDlpUrl, ytDlpFile)
             ytDlpFile.setExecutable(true, false)
             true
@@ -84,9 +83,9 @@ class YtDlpManager {
         }
     }
 
-    fun installFfmpeg(toast: TutorialToast? = null): Boolean {
+    fun installFfmpeg(toast: ToastRenderer.ProgressToast? = null): Boolean {
         return try {
-            ToastManager.updateTextAsync(toast,Component.literal("Downloading FFmpeg..."))
+            toast?.updateMessage("Downloading FFmpeg...")
             if (!ffmpegDir.exists()) ffmpegDir.mkdirs()
 
             val archiveFile = File(ffmpegDir, if (isWindows) "ffmpeg.zip" else "ffmpeg.tar.xz")
@@ -113,26 +112,24 @@ class YtDlpManager {
         return a && b
     }
 
-    fun updateYtDlp(toast: TutorialToast? = null): Boolean {
+    fun updateYtDlp(): Boolean {
         uninstallYtDlp()
-        return installYtDlp(toast)
+        return installYtDlp()
     }
 
-    fun updateFfmpeg(toast: TutorialToast? = null): Boolean {
+    fun updateFfmpeg(): Boolean {
         uninstallFfmpeg()
-        return installFfmpeg(toast)
+        return installFfmpeg()
     }
 
-    fun updateYtDlpNightly(toast: TutorialToast? = null): Boolean {
+    fun updateYtDlpNightly(): Boolean {
         return try {
-            ToastManager.updateTextAsync(toast, Component.literal("Downloading yt-dlp (nightly)......"))
             uninstallYtDlp()
             downloadFile(ytDlpNightlyUrl, ytDlpFile)
             ytDlpFile.setExecutable(true, false)
-            ToastManager.hideToast(toast, 2000L)
             true
         } catch (t: Throwable) {
-            failure(toast, "message.simplesoundboard.youtube.update_nightly_failed")
+            failure(null, "message.simplesoundboard.youtube.update_nightly_failed")
             t.printStackTrace()
             false
         }
@@ -164,15 +161,11 @@ class YtDlpManager {
     }
 
 
-    // ---------------------------
     // Download into sound dir
-    // ---------------------------
 
     fun downloadUrlIntoSoundDir(url: String, category: String?): Pair<Boolean, String> {
         if (url.isBlank()) return Pair(false, "message.simplesoundboard.empty_url")
-        // local var, not a shared field - each call gets its own toast,
-        // so two downloads running at once can't clobber each other's
-        val toast = ToastManager.createProgressToast(Component.literal("Preparing Download..."))
+        val toast = ToastRenderer.showProgress("Preparing Download...")
 
         if (!ensureBinariesPresent(toast)) {
             return failure(toast, "message.simplesoundboard.binaries_missing")
@@ -210,8 +203,8 @@ class YtDlpManager {
             .start()
     }
 
-    private fun streamProcessOutput(proc: Process, toast: TutorialToast) {
-        ToastManager.updateTextAsync(toast, Component.literal("Downloading..."))
+    private fun streamProcessOutput(proc: Process, toast: ToastRenderer.ProgressToast) {
+        toast.updateMessage("Downloading...")
         toast.updateProgress(0.20f)
 
         logFile.parentFile?.mkdirs()
@@ -224,8 +217,7 @@ class YtDlpManager {
                     log.appendLine(line)
                     when {
                         line.startsWith("[download]") -> handleDownloadLine(line, toast)
-                        line.startsWith("[ExtractAudio]") ->
-                            ToastManager.updateTextAsync(toast, Component.literal("Converting to mp3..."))
+                        line.startsWith("[ExtractAudio]") -> toast.updateMessage("Converting to mp3...")
                     }
                     logger.debug(line)
                 }
@@ -233,7 +225,7 @@ class YtDlpManager {
         }
     }
 
-    private fun handleDownloadLine(line: String, toast: TutorialToast) {
+    private fun handleDownloadLine(line: String, toast: ToastRenderer.ProgressToast) {
         val percent = Regex("""([\d.]+)%""")
             .find(line)
             ?.groupValues?.get(1)
@@ -245,7 +237,7 @@ class YtDlpManager {
         if (percent > 0.20f) toast.updateProgress(percent)
     }
 
-    private fun awaitProcess(proc: Process, toast: TutorialToast): Pair<Boolean, String> {
+    private fun awaitProcess(proc: Process, toast: ToastRenderer.ProgressToast): Pair<Boolean, String> {
         val finished = proc.waitFor(3, TimeUnit.MINUTES)
 
         if (!finished) {
@@ -254,8 +246,12 @@ class YtDlpManager {
         }
 
         return if (proc.exitValue() == 0) {
-            ToastManager.updateTextAsync(toast, Component.literal("Download Complete!").withStyle(ChatFormatting.BOLD).withColor(Color(0, 210, 0).rgb))
-            ToastManager.hideToast(toast, 2000L)
+            toast.updateMessage(
+                Component.literal("Download Complete!")
+                    .withStyle(ChatFormatting.BOLD)
+                    .withColor(Color(0, 210, 0).rgb)
+            )
+            toast.completeAfter(2000L)
 
             val screen = Minecraft.getInstance().gui.screen()
             if (screen is SoundboardScreen) screen.scanSounds()
@@ -266,11 +262,9 @@ class YtDlpManager {
         }
     }
 
-    // ---------------------------
     // Shared helpers
-    // ---------------------------
 
-    private fun downloadFile(urlStr: String, dest: File) {
+    private fun downloadFile(urlStr: String, destination: File) {
         val conn = (URI(urlStr).toURL().openConnection() as HttpURLConnection).apply {
             instanceFollowRedirects = true
             connectTimeout = 15_000
@@ -286,27 +280,27 @@ class YtDlpManager {
         }
 
         BufferedInputStream(conn.inputStream).use { input ->
-            dest.outputStream().use { output -> input.copyTo(output) }
+            destination.outputStream().use { output -> input.copyTo(output) }
         }
 
         conn.disconnect()
     }
 
-    private fun extractZip(zipFile: File, destDir: File) {
+    private fun extractZip(zipFile: File, destinationDir: File) {
         java.util.zip.ZipFile(zipFile).use { zip ->
             zip.entries().asSequence().forEach { entry ->
                 val name = entry.name
                 if (!entry.isDirectory && (name.contains("/bin/") || name.startsWith("bin/"))) {
                     val fileName = name.substringAfterLast('/')
                     zip.getInputStream(entry).use { input ->
-                        File(destDir, fileName).outputStream().use { output -> input.copyTo(output) }
+                        File(destinationDir, fileName).outputStream().use { output -> input.copyTo(output) }
                     }
                 }
             }
         }
     }
 
-    private fun extractTarXz(archiveFile: File, destDir: File) {
+    private fun extractTarXz(archiveFile: File, destinationDir: File) {
         val listProc = ProcessBuilder("tar", "-tJf", archiveFile.absolutePath).start()
         val rootDir = BufferedReader(InputStreamReader(listProc.inputStream)).readLine()?.substringBefore('/') ?: ""
         listProc.waitFor()
@@ -315,7 +309,7 @@ class YtDlpManager {
             ProcessBuilder(
                 "tar", "-xJf", archiveFile.absolutePath,
                 "--strip-components=2",
-                "-C", destDir.absolutePath,
+                "-C", destinationDir.absolutePath,
                 "$rootDir/bin"
             ).start().waitFor(2, TimeUnit.MINUTES)
         }
@@ -344,9 +338,9 @@ class YtDlpManager {
         return file
     }
 
-    private fun failure(toast: TutorialToast?, msg: String): Pair<Boolean, String> {
-        ToastManager.updateTextAsync(toast, Component.literal(msg).withStyle(ChatFormatting.RED))
-        ToastManager.hideToast(toast, 2000L)
+    private fun failure(toast: ToastRenderer.ProgressToast?, msg: String): Pair<Boolean, String> {
+        toast?.updateMessage(Component.literal(msg).withStyle(ChatFormatting.RED))
+        toast?.completeAfter(2000L)
         return Pair(false, msg)
     }
 }

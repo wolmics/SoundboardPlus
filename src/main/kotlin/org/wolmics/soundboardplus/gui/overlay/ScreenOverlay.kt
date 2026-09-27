@@ -1,11 +1,11 @@
 package org.wolmics.soundboardplus.gui.overlay
 
+import com.mojang.blaze3d.platform.InputConstants
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.input.CharacterEvent
 import net.minecraft.client.input.KeyEvent
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
-import org.lwjgl.glfw.GLFW
 
 abstract class ScreenOverlay(
     protected val ctx: OverlayContext,
@@ -56,7 +56,7 @@ abstract class ScreenOverlay(
 
     fun keyPressed(input: KeyEvent): Boolean {
         if (!isVisible) return false
-        if (input.key == GLFW.GLFW_KEY_ESCAPE) { hide(); return true }
+        if (input.key == InputConstants.KEY_ESCAPE) { hide(); return true }
         return onKeyPressed(input)
     }
 

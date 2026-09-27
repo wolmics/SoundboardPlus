@@ -1,5 +1,6 @@
 package org.wolmics.soundboardplus.gui
 
+import com.mojang.blaze3d.platform.InputConstants
 import net.minecraft.ChatFormatting
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphicsExtractor
@@ -8,17 +9,18 @@ import net.minecraft.client.gui.components.Button
 import net.minecraft.client.gui.components.EditBox
 import net.minecraft.client.gui.components.StringWidget
 import net.minecraft.client.gui.components.Tooltip
+import net.minecraft.client.gui.components.events.GuiEventListener
 import net.minecraft.client.input.CharacterEvent
 import net.minecraft.client.input.KeyEvent
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
+import org.lwjgl.sdl.SDLKeyboard
 import org.wolmics.soundboardplus.SoundboardAudioSystem
 import org.wolmics.soundboardplus.config.SoundboardConfig
 import org.wolmics.soundboardplus.gui.overlay.CategoryConfigOverlay
 import org.wolmics.soundboardplus.gui.overlay.OverlayContext
 import org.wolmics.soundboardplus.gui.overlay.YtDlpOverlay
 import org.wolmics.soundboardplus.util.SoundboardSession
-import org.lwjgl.glfw.GLFW
 import org.wolmics.soundboardplus.config.SoundData
 import org.wolmics.soundboardplus.gui.components.CategoryTabWidget
 import org.wolmics.soundboardplus.gui.components.ProgressBar
@@ -99,6 +101,8 @@ class SoundboardScreen(
         queryField = EditBox(font, padding, 20, searchWidth, 20, Component.literal("Search"))
         queryField.setResponder { scanSounds() }
         addRenderableWidget(queryField)
+
+        Minecraft.getInstance().onTextInputFocusChange(queryField, true)
 
         setupTopButtons()
         setupDetailButtons(padding)
@@ -363,7 +367,7 @@ class SoundboardScreen(
 
     private fun updateBindButtonText(keyCode: Int) {
         val keyName = if (keyCode > 0)
-            GLFW.glfwGetKeyName(keyCode, 0) ?: "Unknown"
+            SDLKeyboard.SDL_GetScancodeName(keyCode) ?: "Unknown"
         else
             "-"
         detailBindBtn.message = Component.literal("Keybind: ${keyName.uppercase()}")
@@ -387,7 +391,14 @@ class SoundboardScreen(
         if (categoryOverlay.charTyped(input)) return true
         if (downloadOverlay.charTyped(input)) return true
         if (deleteConfirmOverlay.charTyped(input)) return true
-        return super.charTyped(input)
+        if (super.charTyped(input)) return true
+
+        if (!isBinding && resultsList.renamingEntry() == null) {
+            if (!queryField.isFocused) setFocused(queryField)
+            return queryField.charTyped(input)
+        }
+
+        return false
     }
 
     // ── Rendering ───────────────────────────────────────────────────────────────
@@ -461,7 +472,7 @@ class SoundboardScreen(
         if (deleteConfirmOverlay.mouseClicked(click, doubled)) return true
 
         // Cancel any pending drag on right-click
-        if (click.button() == 1) {
+        if (click.button() == 3) {
             cancelDrag()
         }
 
@@ -471,7 +482,7 @@ class SoundboardScreen(
                 return true
             }
             is CategoryTabWidget.Action.SelectCategory -> {
-                setFocused(false) // Remove focus from queryField
+                setFocused(false) // Removes visual focus from queryField
                 if (selectedCategory != tabAction.category) {
                     selectedCategory = tabAction.category
                     scanSounds()
@@ -542,12 +553,12 @@ class SoundboardScreen(
         if (deleteConfirmOverlay.keyPressed(input)) return true
 
         // ESC cancels an active drag instead of closing the screen
-        if (input.key == GLFW.GLFW_KEY_ESCAPE && draggingSound != null) {
+        if (input.key == InputConstants.KEY_ESCAPE && draggingSound != null) {
             cancelDrag()
             return true
         }
 
-        if (input.key == GLFW.GLFW_KEY_F5) {
+        if (input.key == InputConstants.KEY_F5) {
             scanSounds()
             return true
         }
@@ -558,20 +569,20 @@ class SoundboardScreen(
             return renamingEntry.keyPressed(input)
         }
 
-        if (input.key == GLFW.GLFW_KEY_BACKSPACE && selectedSound == null && selectedCategory != null && !queryField.isFocused) {
+        if (input.key == InputConstants.KEY_BACKSPACE && selectedSound == null && selectedCategory != null && !queryField.isFocused) {
             deleteConfirmOverlay.setCategory(selectedCategory!!)
             deleteConfirmOverlay.show()
             return true
         }
 
-        if (input.key == GLFW.GLFW_KEY_SPACE && selectedSound != null && !queryField.isFocused) {
+        if (input.key == InputConstants.KEY_SPACE && selectedSound != null && !queryField.isFocused) {
             SoundboardAudioSystem.cyclePlaySound(selectedSound!!)
             return true
         }
 
         // Select Sound with arrow keys
-        if (input.key == GLFW.GLFW_KEY_DOWN || input.key == GLFW.GLFW_KEY_UP) {
-            val direction = if (input.key == GLFW.GLFW_KEY_DOWN) 1 else -1
+        if (input.key == InputConstants.KEY_DOWN || input.key == InputConstants.KEY_UP) {
+            val direction = if (input.key == InputConstants.KEY_DOWN) 1 else -1
             val currentIndex = selectedSound?.let { results.indexOf(it) } ?: -direction
             val nextIndex = (currentIndex + direction).coerceIn(0, results.size - 1)
             selectSound(results[nextIndex])
@@ -593,6 +604,22 @@ class SoundboardScreen(
             setFocused(queryField)
         }
         return queryField.keyPressed(input)
+    }
+
+    override fun setFocused(listener: GuiEventListener?) {
+        super.setFocused(listener)
+
+        // Whenever focus moves away from the search field,
+        // keep queryField target for keyboard input
+        if (listener !== queryField
+            && resultsList.renamingEntry() == null
+            && !isBinding
+            && !categoryOverlay.isVisible
+            && !downloadOverlay.isVisible
+            && !deleteConfirmOverlay.isVisible
+        ) {
+            Minecraft.getInstance().onTextInputFocusChange(queryField, true)
+        }
     }
 
     override fun onClose() {

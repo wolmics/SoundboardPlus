@@ -1,5 +1,7 @@
 package org.wolmics.soundboardplus.gui.overlay
 
+import com.mojang.blaze3d.Blaze3D
+import com.mojang.blaze3d.platform.InputConstants
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.components.Button
 import net.minecraft.client.gui.components.EditBox
@@ -8,11 +10,9 @@ import net.minecraft.client.input.CharacterEvent
 import net.minecraft.client.input.KeyEvent
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
-import net.minecraft.util.Util
 import org.wolmics.soundboardplus.SimpleSoundboardClient
 import org.wolmics.soundboardplus.YtDlpManager
-import org.wolmics.soundboardplus.util.ToastManager
-import org.lwjgl.glfw.GLFW
+import org.wolmics.soundboardplus.util.ToastRenderer
 import java.util.concurrent.CompletableFuture
 
 class YtDlpOverlay(ctx: OverlayContext, title: Component) : ScreenOverlay(ctx, overlayWidth = 200, overlayHeight = 90) {
@@ -31,7 +31,7 @@ class YtDlpOverlay(ctx: OverlayContext, title: Component) : ScreenOverlay(ctx, o
     private var downloadButton = Button.builder(Component.literal("Download")) {
         val url = urlField.value.trim()
         if (url.isBlank()) {
-            ToastManager.createToast(Component.literal("Please enter a URL!"), 1500L)
+            ToastRenderer.showText("Please enter a URL!", 1500)
             return@builder
         }
 
@@ -39,7 +39,7 @@ class YtDlpOverlay(ctx: OverlayContext, title: Component) : ScreenOverlay(ctx, o
     }.size(120, 20).pos(x + overlayWidth / 2 - 60, y + 55).build()
 
     private var openFolderButton = Button.builder(Component.literal("\uD83D\uDCC2")) {
-        Util.getPlatform().openFile(SimpleSoundboardClient.soundDir)
+        Blaze3D.openPath(SimpleSoundboardClient.soundDir.toPath())
     }.size(20, 20).pos(screenWidth / 2 + 70, y + 55).build()
 
     init {
@@ -73,7 +73,7 @@ class YtDlpOverlay(ctx: OverlayContext, title: Component) : ScreenOverlay(ctx, o
     }
 
     override fun onKeyPressed(input: KeyEvent): Boolean {
-        if (input.key == GLFW.GLFW_KEY_ENTER) {
+        if (input.key == InputConstants.KEY_RETURN) {
             hide()
             return true
         }

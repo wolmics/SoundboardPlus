@@ -1,18 +1,22 @@
 package org.wolmics.soundboardplus
 
+import com.mojang.blaze3d.platform.InputConstants
 import net.fabricmc.api.ClientModInitializer
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents
+import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents
 import net.fabricmc.loader.api.FabricLoader
 import net.minecraft.client.KeyMapping
 import net.minecraft.client.Minecraft
 import net.minecraft.resources.Identifier
 import org.wolmics.soundboardplus.config.SoundboardConfig
 import org.wolmics.soundboardplus.gui.SoundboardScreen
-import org.lwjgl.glfw.GLFW
 import org.wolmics.soundboardplus.util.KeyEventBus
-import org.wolmics.soundboardplus.util.ToastManager
+import org.wolmics.soundboardplus.util.ToastRenderer
 import java.io.File
 
 class SimpleSoundboardClient : ClientModInitializer {
@@ -37,14 +41,14 @@ class SimpleSoundboardClient : ClientModInitializer {
         OPEN_GUI_KEY = KeyMappingHelper.registerKeyMapping(
             KeyMapping(
                 "key.$MOD_ID.open",
-                GLFW.GLFW_KEY_J,
+                InputConstants.KEY_J,
                 KEY_CATEGORY
             )
         )
         PAUSE_PLAYBACK_KEY = KeyMappingHelper.registerKeyMapping(
             KeyMapping(
                 "key.$MOD_ID.pause",
-                GLFW.GLFW_KEY_H,
+                InputConstants.KEY_H,
                 KEY_CATEGORY
             )
         )
@@ -60,6 +64,21 @@ class SimpleSoundboardClient : ClientModInitializer {
 
         SoundboardConfig.load()
 
+        // Path 1: normal gameplay, no GUI open
+        HudElementRegistry.attachElementBefore(
+            VanillaHudElements.CHAT,
+            Identifier.fromNamespaceAndPath(MOD_ID, "toast_hud")
+        ) { graphics, _ -> ToastRenderer.extract(graphics) }
+
+        // Path 2: any GUI open, drawn after blur so it's unblurred and on top
+        ScreenEvents.AFTER_INIT.register { _, screen, _, _ ->
+            ScreenEvents.afterExtract(screen).register { _, graphics, mouseX, mouseY, _ ->
+                ToastRenderer.extract(graphics)
+            }
+
+            ScreenMouseEvents.beforeMouseClick(screen).register {screen, mouseButtonEvent -> ToastRenderer.mouseClicked(mouseButtonEvent.x, mouseButtonEvent.y) }
+        }
+
         ClientTickEvents.END_CLIENT_TICK.register { client: Minecraft ->
             if (client.player == null) return@register
 
@@ -72,7 +91,6 @@ class SimpleSoundboardClient : ClientModInitializer {
             }
 
             KeyEventBus.handleSoundKeybinds(client)
-            ToastManager.tick()
         }
 
         ClientLifecycleEvents.CLIENT_STOPPING.register {

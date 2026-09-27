@@ -1,5 +1,6 @@
 package org.wolmics.soundboardplus.gui
 
+import com.mojang.blaze3d.Blaze3D
 import net.minecraft.ChatFormatting
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.components.Button
@@ -8,14 +9,16 @@ import net.minecraft.client.gui.components.Tooltip
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.network.chat.Component
 import net.minecraft.network.chat.TextColor
-import net.minecraft.util.Util
 import org.wolmics.soundboardplus.YtDlpManager
-import org.wolmics.soundboardplus.util.ToastManager
 import java.util.concurrent.CompletableFuture
-import org.lwjgl.util.tinyfd.TinyFileDialogs
+import org.lwjgl.sdl.SDLDialog
+import org.lwjgl.sdl.SDLError
+import org.lwjgl.sdl.SDL_DialogFileCallbackI
+import org.lwjgl.system.MemoryUtil
 import org.wolmics.soundboardplus.AudioDecoder
 import org.wolmics.soundboardplus.SoundboardAudioSystem
 import org.wolmics.soundboardplus.config.SoundboardConfig
+import org.wolmics.soundboardplus.util.ToastRenderer
 
 class DebugScreen(private val parent: Screen?) : Screen(Component.literal("Debug Screen")) {
 
@@ -34,6 +37,8 @@ class DebugScreen(private val parent: Screen?) : Screen(Component.literal("Debug
     private val ytDlpManager = YtDlpManager()
 
     private var currentAudioDecoder: AudioDecoder = SoundboardAudioSystem.getAudioDecoder()
+
+    private var pendingDialogCallback: SDL_DialogFileCallbackI? = null
 
     private data class Panel(
         val x: Int,
@@ -173,137 +178,143 @@ class DebugScreen(private val parent: Screen?) : Screen(Component.literal("Debug
 
     // --- ffmpeg actions ---
     private fun onFfmpegUpdate() {
-        minecraft.execute {
-            ToastManager.createToast(Component.literal("Updating FFmpeg..."), 3000)
-            CompletableFuture.runAsync {
-                val success = ytDlpManager.updateFfmpeg()
-                minecraft.execute {
-                    if (success) {
-                        ToastManager.createToast(Component.literal("FFmpeg updated successfully"), 3000)
-                    } else {
-                        ToastManager.createToast(Component.literal("Failed to update FFmpeg"), 3000)
-                    }
-                }
+        ToastRenderer.showText("Updating FFmpeg...", 3000)
+        CompletableFuture.runAsync {
+            val success = ytDlpManager.updateFfmpeg()
+            if (success) {
+                ToastRenderer.showText("FFmpeg updated successfully!", 3000)
+            } else {
+                ToastRenderer.showText("Failed to update FFmpeg...", 3000)
             }
         }
+
     }
 
     private fun onFfmpegUninstall() {
-        minecraft.execute {
-            ToastManager.createToast(Component.literal("Uninstalling FFmpeg..."), 3000)
-            CompletableFuture.runAsync {
-                val success = ytDlpManager.uninstallFfmpeg()
-                minecraft.execute {
-                    if (success) {
-                        ToastManager.createToast(Component.literal("FFmpeg uninstalled successfully"), 3000)
-                    } else {
-                        ToastManager.createToast(Component.literal("Failed to uninstall FFmpeg"), 3000)
-                    }
-                }
+        ToastRenderer.showText("Uninstalling FFmpeg...", 3000)
+        CompletableFuture.runAsync {
+            val success = ytDlpManager.uninstallFfmpeg()
+            if (success) {
+                ToastRenderer.showText("FFmpeg uninstalled successfully!", 3000)
+            } else {
+                ToastRenderer.showText("Failed to uninstall FFmpeg...", 3000)
             }
         }
     }
 
     private fun onFfmpegSetCustomPath() {
-        browseAndSetPath("Select ffmpeg executable") { path ->
+        browseAndSetPath { path ->
             val valid = ytDlpManager.setFfmpegPath(path)
             val message = if (valid) {
                 Component.literal("FFmpeg path set successfully!").withColor(TextColor.GREEN)
             } else {
-                Component.literal("Invalid FFmpeg path").withColor(TextColor.RED)
+                Component.literal("Invalid FFmpeg path.").withColor(TextColor.RED)
             }
-            ToastManager.createToast(message, 3000)
+
+            ToastRenderer.showText(message, 3000)
             return@browseAndSetPath true
         }
     }
 
     // --- yt-dlp actions ---
     private fun onYtDlpUpdate() {
-        minecraft.execute {
-            ToastManager.createToast(Component.literal("Updating yt-dlp..."), 3000)
-            CompletableFuture.runAsync {
-                val success = ytDlpManager.updateYtDlp()
-                minecraft.execute {
-                    if (success) {
-                        ToastManager.createToast(Component.literal("yt-dlp updated successfully"), 3000)
-                    } else {
-                        ToastManager.createToast(Component.literal("Failed to update yt-dlp"), 3000)
-                    }
-                }
+        ToastRenderer.showText("Updating yt-dlp...", 3000)
+        CompletableFuture.runAsync {
+            val success = ytDlpManager.updateYtDlp()
+            if (success) {
+                ToastRenderer.showText("yt-dlp updated successfully!", 3000)
+            } else {
+                ToastRenderer.showText("Failed to update yt-dlp...", 3000)
             }
         }
     }
 
     private fun onYtDlpUpdateNightly() {
-        minecraft.execute {
-            ToastManager.createToast(Component.literal("Updating yt-dlp to nightly..."), 3000)
-            CompletableFuture.runAsync {
-                val success = ytDlpManager.updateYtDlpNightly()
-                minecraft.execute {
-                    if (success) {
-                        ToastManager.createToast(Component.literal("yt-dlp nightly updated successfully"), 3000)
-                    } else {
-                        ToastManager.createToast(Component.literal("Failed to update yt-dlp nightly"), 3000)
-                    }
-                }
+        ToastRenderer.showText("Updating yt-dlp to nightly...", 3000)
+        CompletableFuture.runAsync {
+            val success = ytDlpManager.updateYtDlpNightly()
+            if (success) {
+                ToastRenderer.showText("yt-dlp nightly updated successfully!", 3000)
+            } else {
+                ToastRenderer.showText("Failed to update yt-dlp nightly...", 3000)
             }
         }
     }
 
     private fun onYtDlpUninstall() {
-        minecraft.execute {
-            ToastManager.createToast(Component.literal("Uninstalling yt-dlp..."), 3000)
-            CompletableFuture.runAsync {
-                val success = ytDlpManager.uninstallYtDlp()
-                minecraft.execute {
-                    if (success) {
-                        ToastManager.createToast(Component.literal("yt-dlp uninstalled successfully"), 3000)
-                    } else {
-                        ToastManager.createToast(Component.literal("Failed to uninstall yt-dlp"), 3000)
-                    }
-                }
+        ToastRenderer.showText("Uninstalling yt-dlp...", 3000)
+        CompletableFuture.runAsync {
+            val success = ytDlpManager.uninstallYtDlp()
+            if (success) {
+                ToastRenderer.showText("yt-dlp uninstalled successfully!", 3000)
+            } else {
+                ToastRenderer.showText("Failed to uninstall yt-dlp...", 3000)
             }
         }
     }
 
     private fun onYtDlpOpenLogs() {
-        minecraft.execute {
-            Util.getPlatform().openFile(ytDlpManager.logFile)
-            ToastManager.createToast(Component.literal("Opened yt-dlp log file"), 3000)
+        CompletableFuture.runAsync {
+            Blaze3D.openPath(ytDlpManager.logFile.toPath())
+            ToastRenderer.showText("Opened yt-dlp log file.", 3000)
         }
     }
 
     private fun onYtDlpSetCustomPath() {
-        browseAndSetPath("Select yt-dlp executable") { path ->
+        browseAndSetPath { path ->
             val valid = ytDlpManager.setYtDlpPath(path)
             val message = if (valid) {
                 Component.literal("yt-dlp path set successfully!").withColor(TextColor.GREEN)
             } else {
-                Component.literal("Invalid yt-dlp path").withColor(TextColor.RED)
+                Component.literal("Invalid yt-dlp path.").withColor(TextColor.RED)
             }
-            ToastManager.createToast(message, 3000)
+            ToastRenderer.showText(message, 3000)
             return@browseAndSetPath true
         }
     }
 
-    private fun browseAndSetPath(dialogTitle: String, setPath: (String) -> Boolean) {
-        CompletableFuture.supplyAsync {
-            // tinyfd starts the file selecting process
-            TinyFileDialogs.tinyfd_openFileDialog(dialogTitle, null, null, null, false)
-        }.thenAccept { selected ->
-            if (selected == null) return@thenAccept // user cancelled the dialog
+    private fun browseAndSetPath(setPath: (String) -> Boolean) {
+        val callback = SDL_DialogFileCallbackI { _, filelist, _ ->
+            if (filelist == MemoryUtil.NULL) {
+                ToastRenderer.showText(
+                    Component.literal("Dialog error: ${SDLError.SDL_GetError()}").withColor(TextColor.RED),
+                    3000
+                )
+                minecraft.execute { pendingDialogCallback = null }
+                return@SDL_DialogFileCallbackI
+            }
+
+            val firstPathPtr = MemoryUtil.memGetAddress(filelist)
+            val selected = if (firstPathPtr != MemoryUtil.NULL) MemoryUtil.memUTF8(firstPathPtr) else null
+
+            if (selected == null) {
+                // user cancelled
+                minecraft.execute { pendingDialogCallback = null }
+                return@SDL_DialogFileCallbackI
+            }
 
             val valid = setPath(selected)
-            minecraft.execute {
-                val message = if (valid) {
-                    Component.literal("Path set successfully!").withColor(TextColor.GREEN)
-                } else {
-                    Component.literal("That path is invalid.").withColor(TextColor.RED)
-                }
-                ToastManager.createToast(message, 3000)
+            val message = if (valid) {
+                Component.literal("Path set successfully!").withColor(TextColor.GREEN)
+            } else {
+                Component.literal("That path is invalid.").withColor(TextColor.RED)
             }
+            ToastRenderer.showText(message, 3000)
+            minecraft.execute { pendingDialogCallback = null }
         }
+
+        pendingDialogCallback = callback
+
+        SDLDialog.SDL_ShowOpenFileDialog(
+            callback,
+            MemoryUtil.NULL,
+            MemoryUtil.NULL,
+            null,
+            null as CharSequence?,   // disambiguate: forces the CharSequence overload
+            false
+        )
     }
+
     // --- Audio Decoder actions ---
         private val decoderTooltip: Tooltip = Tooltip.create(
         Component.literal("Automatic")

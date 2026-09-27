@@ -1,5 +1,6 @@
 package org.wolmics.soundboardplus.gui.components
 
+import com.mojang.blaze3d.platform.InputConstants
 import net.minecraft.ChatFormatting
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.Font
@@ -13,11 +14,10 @@ import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
 import net.minecraft.network.chat.TextColor
 import net.minecraft.util.Util
-import org.lwjgl.glfw.GLFW
 import org.wolmics.soundboardplus.SoundboardAudioSystem
 import org.wolmics.soundboardplus.config.SoundboardConfig
 import org.wolmics.soundboardplus.config.SoundData
-import org.wolmics.soundboardplus.util.ToastManager
+import org.wolmics.soundboardplus.util.ToastRenderer
 import java.awt.Color
 
 @Suppress("EXPOSED_SUPER_CLASS")
@@ -109,7 +109,10 @@ class ResultListWidget(
 
             val textColor = (alpha shl 24) or (0x00FFFFFF and Color.WHITE.rgb)
 
-            if (!isFocused && renaming) renaming = false
+            if (!isFocused && renaming) {
+                renaming = false
+                Minecraft.getInstance().onTextInputFocusChange(this, false)
+            }
 
             // Render normal Category Name
             if (!renaming) {
@@ -147,11 +150,16 @@ class ResultListWidget(
             if (favBtn.mouseClicked(click, doubled)) return true
             if (playBtn.mouseClicked(click, doubled)) return true
 
-            // 1 == right-click
+            // 3 == right-click
             val wasRenaming = renaming
-            if (click.button() == 1) {
+            if (click.button() == 3) {
                 renaming = !wasRenaming
-                if (renaming) cursorIndex = renamedName.length
+                if (renaming) {
+                    cursorIndex = renamedName.length
+                    Minecraft.getInstance().onTextInputFocusChange(this, true)
+                } else {
+                    Minecraft.getInstance().onTextInputFocusChange(this, false)
+                }
             }
 
             onEntryMouseDown(sound, click.x.toInt(), click.y.toInt())
@@ -174,11 +182,12 @@ class ResultListWidget(
         override fun keyPressed(event: KeyEvent): Boolean {
             val key = event.key()
 
-            if (renaming && key == GLFW.GLFW_KEY_ESCAPE) {
+            if (renaming && key == InputConstants.KEY_ESCAPE) {
                 renaming = false
+                Minecraft.getInstance().onTextInputFocusChange(this, false)
             }
 
-            if (renaming && key == GLFW.GLFW_KEY_ENTER) {
+            if (renaming && key == InputConstants.KEY_RETURN) {
                 if (sound.name == renamedName) return super.keyPressed(event)
 
                 SoundboardAudioSystem.stop(sound)
@@ -189,22 +198,23 @@ class ResultListWidget(
 
                     renaming = false
                     setFocused(false)
+                    Minecraft.getInstance().onTextInputFocusChange(this, false)
 
-                    ToastManager.createToast(Component.literal("Successfully renamed File!").withColor(TextColor.GREEN), 2000)
+                    ToastRenderer.showText(Component.literal("Successfully renamed File!").withColor(TextColor.GREEN), 2000)
                 } else {
-                    ToastManager.createToast(Component.literal("Illegal Characters").withColor(TextColor.RED), 2000)
+                    ToastRenderer.showText(Component.literal("Illegal Characters").withColor(TextColor.RED), 2000)
                 }
             }
 
             // Renaming: Delete char
-            if (renaming && key == GLFW.GLFW_KEY_BACKSPACE && cursorIndex > 0) {
+            if (renaming && key == InputConstants.KEY_BACKSPACE && cursorIndex > 0) {
                 renamedName = renamedName.substring(0, cursorIndex - 1) + renamedName.substring(cursorIndex)
                 cursorIndex -= 1
             }
 
             // Renaming: Move cursor around
-            if (renaming && (key == GLFW.GLFW_KEY_LEFT || key == GLFW.GLFW_KEY_RIGHT)) {
-                val direction = if (key == GLFW.GLFW_KEY_RIGHT) 1 else -1
+            if (renaming && (key == InputConstants.KEY_LEFT || key == InputConstants.KEY_RIGHT)) {
+                val direction = if (key == InputConstants.KEY_RIGHT) 1 else -1
                 val newIndex = cursorIndex + direction
                 if (newIndex in 0..renamedName.length) {
                     cursorIndex = newIndex

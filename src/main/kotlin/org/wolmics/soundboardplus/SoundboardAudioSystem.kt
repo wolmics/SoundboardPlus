@@ -8,9 +8,10 @@ import de.maxhenkel.voicechat.api.events.MergeClientSoundEvent
 import javazoom.jl.decoder.*
 import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.Component
+import net.minecraft.network.chat.TextColor
 import org.wolmics.soundboardplus.config.SoundData
 import org.wolmics.soundboardplus.config.SoundboardConfig
-import org.wolmics.soundboardplus.util.ToastManager
+import org.wolmics.soundboardplus.util.ToastRenderer
 import java.io.BufferedInputStream
 import java.io.File
 import java.nio.file.Files
@@ -174,11 +175,11 @@ object SoundboardAudioSystem {
     fun playFile(soundData: SoundData) {
         val api = clientApi
         if (api == null) {
-            ToastManager.createToast(Component.literal("§cVoice chat not connected!"), 1500)
+            ToastRenderer.showText(Component.literal("Voice chat not connected!").withColor(TextColor.RED), 1500)
             return
         }
         if (api.isMuted && !SoundboardConfig.data.playWhileMuted) {
-            ToastManager.createToast(Component.literal("§cCannot play soundboard while muted!"), 1500)
+            ToastRenderer.showText(Component.literal("Cannot play soundboard while muted!").withColor(TextColor.RED), 1500)
             return
         }
         if (SoundboardConfig.data.playOnlyOne && activeSounds.isNotEmpty()) {
@@ -205,9 +206,7 @@ object SoundboardAudioSystem {
                         sound.setSamples(pcm)
                     } else {
                         activeSounds.remove(sound)
-                        Minecraft.getInstance().execute {
-                            ToastManager.createToast(Component.literal("§cFailed to decode: ${file.name}"), 2500)
-                        }
+                        ToastRenderer.showText(Component.literal("Failed to decode: ${file.name}!").withColor(TextColor.RED), 2500)
                     }
                 }
             } catch (e: Exception) {

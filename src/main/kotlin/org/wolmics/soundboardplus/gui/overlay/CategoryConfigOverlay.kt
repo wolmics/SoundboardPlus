@@ -1,5 +1,6 @@
 package org.wolmics.soundboardplus.gui.overlay
 
+import com.mojang.blaze3d.platform.InputConstants
 import net.minecraft.client.gui.GuiGraphicsExtractor
 import net.minecraft.client.gui.components.Button
 import net.minecraft.client.gui.components.EditBox
@@ -8,7 +9,6 @@ import net.minecraft.client.input.CharacterEvent
 import net.minecraft.client.input.KeyEvent
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
-import org.lwjgl.glfw.GLFW
 
 class CategoryConfigOverlay(ctx: OverlayContext, private val title: Component, private val onConfirm: (String) -> Unit, onDismiss: (() -> Unit)? = null): ScreenOverlay(ctx, overlayWidth = 160, overlayHeight = 80, onDismiss = onDismiss) {
     private val label = StringWidget(Component.literal("Create Category"), font)
@@ -60,7 +60,7 @@ class CategoryConfigOverlay(ctx: OverlayContext, private val title: Component, p
     }
 
     override fun onKeyPressed(input: KeyEvent): Boolean {
-        if (input.key == GLFW.GLFW_KEY_ENTER) {
+        if (input.key == InputConstants.KEY_RETURN) {
             onConfirm(categoryNameField.value)
             hide()
             return true

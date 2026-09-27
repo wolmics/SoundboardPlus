@@ -2,7 +2,6 @@ package org.wolmics.soundboardplus.util
 
 import com.mojang.blaze3d.platform.InputConstants
 import net.minecraft.client.Minecraft
-import org.lwjgl.glfw.GLFW
 import org.wolmics.soundboardplus.SoundboardAudioSystem
 import org.wolmics.soundboardplus.config.SoundboardConfig
 
@@ -15,9 +14,9 @@ object KeyEventBus {
 
         for (sound in SoundboardConfig.data.sounds) {
             val keyCode = sound.keybind
-            if (keyCode <= 0 || keyCode == GLFW.GLFW_KEY_ESCAPE) continue
+            if (keyCode <= 0 || keyCode == InputConstants.KEY_RETURN) continue
 
-            val isPressed = InputConstants.isKeyDown(client.window, keyCode)
+            val isPressed = InputConstants.isKeyDown(keyCode)
             val wasPressed = snapshot.contains(keyCode)
 
             if (isPressed && !wasPressed) {

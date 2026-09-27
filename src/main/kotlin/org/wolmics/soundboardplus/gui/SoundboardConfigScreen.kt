@@ -1,5 +1,6 @@
 package org.wolmics.soundboardplus.gui
 
+import com.mojang.blaze3d.Blaze3D
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.components.CycleButton
 import net.minecraft.client.gui.components.Button
@@ -7,7 +8,6 @@ import net.minecraft.client.gui.components.StringWidget
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
-import net.minecraft.util.Util
 import org.wolmics.soundboardplus.config.SoundboardConfig
 import java.net.URI
 
@@ -91,15 +91,15 @@ class SoundboardConfigScreen(private val parent: Screen?) : Screen(Component.lit
     }
 
     override fun mouseClicked(click: MouseButtonEvent, double: Boolean): Boolean {
-        if (click.button() == 0) { // left click only
+        if (click.button() == 1) { // left click only
             val origWidth = font.width(originalAuthorText)
             if (click.x in 10.0..(10.0 + origWidth) && click.y in (height - 35.0)..(height - 25.0)) {
-                Util.getPlatform().openUri(URI(originalAuthorGithubUrl))
+                Blaze3D.openUri(URI(originalAuthorGithubUrl))
             }
 
             val forkWidth = font.width(forkAuthorText)
             if (click.x in 10.0..(10.0 + forkWidth) && click.y in (height - 20.0)..(height - 10.0)) {
-                Util.getPlatform().openUri(URI(forkAuthorGithubUrl))
+                Blaze3D.openUri(URI(forkAuthorGithubUrl))
             }
         }
         return super.mouseClicked(click, double)
