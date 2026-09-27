@@ -60,14 +60,16 @@ dependencies {
 
 tasks.processResources {
     inputs.property("version", project.version)
-    inputs.property("minecraft_version", project.property("minecraft_version"))
+    inputs.property("minecraft_version_range", project.property("minecraft_version_range"))
     inputs.property("loader_version", project.property("loader_version"))
+    inputs.property("kotlin_loader_version", project.property("kotlin_loader_version"))
+    inputs.property("voicechat_api_version", project.property("voicechat_api_version"))
     filteringCharset = "UTF-8"
 
     filesMatching("fabric.mod.json") {
         expand(
             "version" to project.version,
-            "minecraft_version" to project.property("minecraft_version")!!,
+            "minecraft_version_range" to project.property("minecraft_version_range")!!,
             "loader_version" to project.property("loader_version")!!,
             "kotlin_loader_version" to project.property("kotlin_loader_version")!!,
             "voicechat_api_version" to project.property("voicechat_api_version")!!,

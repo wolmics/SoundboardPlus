@@ -11,8 +11,8 @@ import net.minecraft.network.chat.Component
 import net.minecraft.util.Util
 import org.wolmics.soundboardplus.SimpleSoundboardClient
 import org.wolmics.soundboardplus.YtDlpManager
-import org.wolmics.soundboardplus.util.ToastManager
 import org.lwjgl.glfw.GLFW
+import org.wolmics.soundboardplus.util.ToastRenderer
 import java.util.concurrent.CompletableFuture
 
 class YtDlpOverlay(ctx: OverlayContext, title: Component) : ScreenOverlay(ctx, overlayWidth = 200, overlayHeight = 90) {
@@ -31,7 +31,7 @@ class YtDlpOverlay(ctx: OverlayContext, title: Component) : ScreenOverlay(ctx, o
     private var downloadButton = Button.builder(Component.literal("Download")) {
         val url = urlField.value.trim()
         if (url.isBlank()) {
-            ToastManager.createToast(Component.literal("Please enter a URL!"), 1500L)
+            ToastRenderer.showText("Please enter a URL!", 1500)
             return@builder
         }
 

@@ -27,14 +27,11 @@
       "org.wolmics.soundboardplus.integration.ModMenuIntegration"
     ]
   },
-  "mixins": [
-    "soundboardplus.mixins.json"
-  ],
   "depends": {
     "fabricloader": ">=${loader_version}",
     "fabric-language-kotlin": ">=${kotlin_loader_version}",
     "fabric-api": "*",
-    "minecraft": "${minecraft_version}",
+    "minecraft": "${minecraft_version_range}",
     "voicechat_api": ">=${voicechat_api_version}"
   }
 }
