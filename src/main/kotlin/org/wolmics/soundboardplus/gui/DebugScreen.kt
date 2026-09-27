@@ -3,18 +3,21 @@ package org.wolmics.soundboardplus.gui
 import net.minecraft.client.MinecraftClient
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.client.gui.screen.Screen
+import net.minecraft.client.gui.tooltip.Tooltip
 import net.minecraft.client.gui.widget.ButtonWidget
 import net.minecraft.client.gui.widget.TextWidget
 import net.minecraft.text.Text
 import net.minecraft.util.Formatting
 import net.minecraft.util.Util
-import org.lwjgl.util.tinyfd.TinyFileDialogs
 import org.wolmics.soundboardplus.YtDlpManager
-import org.wolmics.soundboardplus.util.ToastManager
 import java.util.concurrent.CompletableFuture
+import org.lwjgl.util.tinyfd.TinyFileDialogs
+import org.wolmics.soundboardplus.AudioDecoder
+import org.wolmics.soundboardplus.SoundboardAudioSystem
+import org.wolmics.soundboardplus.config.SoundboardConfig
+import org.wolmics.soundboardplus.util.ToastRenderer
 
 class DebugScreen(private val parent: Screen?) : Screen(Text.literal("Debug Screen")) {
-    private val minecraft = MinecraftClient.getInstance()
 
     private val panelWidth = 130
     private val panelGap = 15
@@ -30,6 +33,8 @@ class DebugScreen(private val parent: Screen?) : Screen(Text.literal("Debug Scre
 
     private val ytDlpManager = YtDlpManager()
 
+    private var currentAudioDecoder: AudioDecoder = SoundboardAudioSystem.getAudioDecoder()
+
     private data class Panel(
         val x: Int,
         val y: Int,
@@ -40,6 +45,7 @@ class DebugScreen(private val parent: Screen?) : Screen(Text.literal("Debug Scre
     private data class ButtonSpec(
         val label: String,
         val danger: Boolean = false,
+        val tooltip: Tooltip? = null,
         val action: (ButtonWidget) -> Unit
     )
 
@@ -53,31 +59,45 @@ class DebugScreen(private val parent: Screen?) : Screen(Text.literal("Debug Scre
         )
 
         panels.clear()
+        val totalWidth = 3 * panelWidth + 2 * panelGap
+        val startX = width / 2 - totalWidth / 2
+        val columnX = IntArray(3) { startX + it * (panelWidth + panelGap) }
+        val panelY = 50
 
-        val ffmpegButtons = listOf(
-            ButtonSpec("Update") { onFfmpegUpdate() },
-            ButtonSpec("Set custom path") { onFfmpegSetCustomPath() },
-            ButtonSpec("Uninstall", danger = true) { onFfmpegUninstall() }
-        )
-        buildPanel(
-            title = "ffmpeg",
-            subtitle = "Audio converter",
-            x = width / 2 - panelWidth / 2 + panelWidth / 2 + panelGap, y = 50,
-            buttons = ffmpegButtons
-        )
-
-        val ytDlpButtons = listOf(
-            ButtonSpec("Update") { onYtDlpUpdate() },
-            ButtonSpec("Update to Nightly") { onYtDlpUpdateNightly() },
-            ButtonSpec("Open logs") { onYtDlpOpenLogs() },
-            ButtonSpec("Set custom path") { onYtDlpSetCustomPath() },
-            ButtonSpec("Uninstall", danger = true) { onYtDlpUninstall() }
-        )
         buildPanel(
             title = "yt-dlp",
             subtitle = "Video downloader",
-            x = width / 2 - panelWidth / 2 - panelWidth / 2 - panelGap, y = 50,
-            buttons = ytDlpButtons
+            x = columnX[0], y = panelY,
+            buttons = listOf(
+                ButtonSpec("Update") { onYtDlpUpdate() },
+                ButtonSpec("Update to Nightly") { onYtDlpUpdateNightly() },
+                ButtonSpec("Open logs") { onYtDlpOpenLogs() },
+                ButtonSpec("Set custom path") { onYtDlpSetCustomPath() },
+                ButtonSpec("Uninstall", danger = true) { onYtDlpUninstall() }
+            )
+        )
+
+        buildPanel(
+            title = "ffmpeg",
+            subtitle = "Audio converter",
+            x = columnX[1], y = panelY,
+            buttons = listOf(
+                ButtonSpec("Update") { onFfmpegUpdate() },
+                ButtonSpec("Set custom path") { onFfmpegSetCustomPath() },
+                ButtonSpec("Uninstall", danger = true) { onFfmpegUninstall() }
+            )
+        )
+
+        buildPanel(
+            title = "Audio Decoder",
+            subtitle = "Decoding backend",
+            x = columnX[2], y = panelY,
+            buttons = listOf(
+                ButtonSpec(
+                    label = currentAudioDecoder.displayName,
+                    tooltip = decoderTooltip
+                ) { btn -> cycleAudioDecoder(btn) }
+            )
         )
     }
 
@@ -88,16 +108,7 @@ class DebugScreen(private val parent: Screen?) : Screen(Text.literal("Debug Scre
 
     private fun drawPanelBackground(context: DrawContext, panel: Panel) {
         context.fill(panel.x, panel.y, panel.x + panelWidth, panel.y + panel.height, colorBackground)
-
-
-        // Draw Outline
-        val x2 = panel.x + panelWidth - 1
-        val y2 = panel.y + panel.height - 1
-
-        context.drawHorizontalLine(panel.x, x2, panel.y, colorOutline)
-        context.drawHorizontalLine(panel.x, x2, y2, colorOutline)
-        context.drawVerticalLine(panel.x, panel.y, y2, colorOutline)
-        context.drawVerticalLine(x2, panel.y, y2, colorOutline)
+        context.drawStrokedRectangle(panel.x, panel.y, panelWidth, panel.height, colorOutline)
 
         // Divider under the header
         context.fill(
@@ -143,7 +154,9 @@ class DebugScreen(private val parent: Screen?) : Screen(Text.literal("Debug Scre
             val button = ButtonWidget.builder(label) { btn -> spec.action(btn) }
                 .position(x + (panelWidth - buttonWidth) / 2, buttonY)
                 .size(buttonWidth, buttonHeight)
+                .tooltip(spec.tooltip)
                 .build()
+
             addDrawableChild(button)
             lastButton = button
 
@@ -155,38 +168,30 @@ class DebugScreen(private val parent: Screen?) : Screen(Text.literal("Debug Scre
     }
 
     override fun close() {
-        minecraft.setScreen(parent)
+        MinecraftClient.getInstance().setScreen(parent)
     }
 
     // --- ffmpeg actions ---
     private fun onFfmpegUpdate() {
-        minecraft.execute {
-            ToastManager.createToast(Text.literal("Updating FFmpeg..."), 3000)
-            CompletableFuture.runAsync {
-                val success = ytDlpManager.updateFfmpeg()
-                minecraft.execute {
-                    if (success) {
-                        ToastManager.createToast(Text.literal("FFmpeg updated successfully"), 3000)
-                    } else {
-                        ToastManager.createToast(Text.literal("Failed to update FFmpeg"), 3000)
-                    }
-                }
+        ToastRenderer.showText("Updating FFmpeg...", 3000)
+        CompletableFuture.runAsync {
+            val success = ytDlpManager.updateFfmpeg()
+            if (success) {
+                ToastRenderer.showText("FFmpeg updated successfully!", 3000)
+            } else {
+                ToastRenderer.showText("Failed to update FFmpeg...", 3000)
             }
         }
     }
 
     private fun onFfmpegUninstall() {
-        minecraft.execute {
-            ToastManager.createToast(Text.literal("Uninstalling FFmpeg..."), 3000)
-            CompletableFuture.runAsync {
-                val success = ytDlpManager.uninstallFfmpeg()
-                minecraft.execute {
-                    if (success) {
-                        ToastManager.createToast(Text.literal("FFmpeg uninstalled successfully"), 3000)
-                    } else {
-                        ToastManager.createToast(Text.literal("Failed to uninstall FFmpeg"), 3000)
-                    }
-                }
+        ToastRenderer.showText("Uninstalling FFmpeg...", 3000)
+        CompletableFuture.runAsync {
+            val success = ytDlpManager.uninstallFfmpeg()
+            if (success) {
+                ToastRenderer.showText("FFmpeg uninstalled successfully!", 3000)
+            } else {
+                ToastRenderer.showText("Failed to uninstall FFmpeg...", 3000)
             }
         }
     }
@@ -197,67 +202,54 @@ class DebugScreen(private val parent: Screen?) : Screen(Text.literal("Debug Scre
             val message = if (valid) {
                 Text.literal("FFmpeg path set successfully!").formatted(Formatting.GREEN)
             } else {
-                Text.literal("Invalid FFmpeg path").formatted(Formatting.RED)
+                Text.literal("Invalid FFmpeg path.").formatted(Formatting.RED)
             }
-            ToastManager.createToast(message, 3000)
+
+            ToastRenderer.showText(message, 3000)
             return@browseAndSetPath true
         }
     }
 
     // --- yt-dlp actions ---
     private fun onYtDlpUpdate() {
-        minecraft.execute {
-            ToastManager.createToast(Text.literal("Updating yt-dlp..."), 3000)
-            CompletableFuture.runAsync {
-                val success = ytDlpManager.updateYtDlp()
-                minecraft.execute {
-                    if (success) {
-                        ToastManager.createToast(Text.literal("yt-dlp updated successfully"), 3000)
-                    } else {
-                        ToastManager.createToast(Text.literal("Failed to update yt-dlp"), 3000)
-                    }
-                }
+        ToastRenderer.showText("Updating yt-dlp...", 3000)
+        CompletableFuture.runAsync {
+            val success = ytDlpManager.updateYtDlp()
+            if (success) {
+                ToastRenderer.showText("yt-dlp updated successfully!", 3000)
+            } else {
+                ToastRenderer.showText("Failed to update yt-dlp...", 3000)
             }
         }
     }
 
     private fun onYtDlpUpdateNightly() {
-        minecraft.execute {
-            ToastManager.createToast(Text.literal("Updating yt-dlp to nightly..."), 3000)
-            CompletableFuture.runAsync {
-                val success = ytDlpManager.updateYtDlpNightly()
-                minecraft.execute {
-                    if (success) {
-                        ToastManager.createToast(Text.literal("yt-dlp nightly updated successfully"), 3000)
-                    } else {
-                        ToastManager.createToast(Text.literal("Failed to update yt-dlp nightly"), 3000)
-                    }
-                }
+        ToastRenderer.showText("Updating yt-dlp to nightly...", 3000)
+        CompletableFuture.runAsync {
+            val success = ytDlpManager.updateYtDlpNightly()
+            if (success) {
+                ToastRenderer.showText("yt-dlp nightly updated successfully!", 3000)
+            } else {
+                ToastRenderer.showText("Failed to update yt-dlp nightly...", 3000)
             }
         }
     }
 
     private fun onYtDlpUninstall() {
-        minecraft.execute {
-            ToastManager.createToast(Text.literal("Uninstalling yt-dlp..."), 3000)
-            CompletableFuture.runAsync {
-                val success = ytDlpManager.uninstallYtDlp()
-                minecraft.execute {
-                    if (success) {
-                        ToastManager.createToast(Text.literal("yt-dlp uninstalled successfully"), 3000)
-                    } else {
-                        ToastManager.createToast(Text.literal("Failed to uninstall yt-dlp"), 3000)
-                    }
-                }
+        ToastRenderer.showText("Uninstalling yt-dlp...", 3000)
+        CompletableFuture.runAsync {
+            val success = ytDlpManager.uninstallYtDlp()
+            if (success) {
+                ToastRenderer.showText("yt-dlp uninstalled successfully!", 3000)
+            } else {
+                ToastRenderer.showText("Failed to uninstall yt-dlp...", 3000)
             }
         }
     }
 
     private fun onYtDlpOpenLogs() {
-        minecraft.execute {
-            Util.getOperatingSystem().open(ytDlpManager.logFile)
-            ToastManager.createToast(Text.literal("Opened yt-dlp log file"), 3000)
-        }
+        Util.getOperatingSystem().open(ytDlpManager.logFile)
+        ToastRenderer.showText("Opened yt-dlp log file.", 3000)
     }
 
     private fun onYtDlpSetCustomPath() {
@@ -268,7 +260,7 @@ class DebugScreen(private val parent: Screen?) : Screen(Text.literal("Debug Scre
             } else {
                 Text.literal("Invalid yt-dlp path").formatted(Formatting.RED)
             }
-            ToastManager.createToast(message, 3000)
+            ToastRenderer.showText(message, 3000)
             return@browseAndSetPath true
         }
     }
@@ -281,14 +273,38 @@ class DebugScreen(private val parent: Screen?) : Screen(Text.literal("Debug Scre
             if (selected == null) return@thenAccept // user cancelled the dialog
 
             val valid = setPath(selected)
-            minecraft.execute {
-                val message = if (valid) {
-                    Text.literal("Path set successfully!").formatted(Formatting.GREEN)
-                } else {
-                    Text.literal("That path is invalid.").formatted(Formatting.RED)
-                }
-                ToastManager.createToast(message, 3000)
+            val message = if (valid) {
+                Text.literal("Path set successfully!").formatted(Formatting.GREEN)
+            } else {
+                Text.literal("That path is invalid.").formatted(Formatting.RED)
             }
+            ToastRenderer.showText(message, 3000)
         }
+    }
+    // --- Audio Decoder actions ---
+    private val decoderTooltip: Tooltip = Tooltip.of(
+        Text.literal("Automatic")
+            .formatted(Formatting.GREEN)
+            .append(Text.literal(": Automatically chooses between Simple Voice Chat Decoder and JLayer.")
+                .formatted(Formatting.GRAY))
+            .append(Text.literal("\n\n"))
+            .append(Text.literal("Simple Voice Chat Decoder")
+                .formatted(Formatting.GREEN))
+            .append(Text.literal(": Decodes the whole file at once. Can lead to longer loading times on large files and higher RAM usage.")
+                .formatted(Formatting.GRAY))
+            .append(Text.literal("\n\n"))
+            .append(Text.literal("JLayer")
+                .formatted(Formatting.GREEN))
+            .append(Text.literal(": Streams the audio from file. Best for large files or if you have issues with Simple Voice Chat Decoder.")
+                .formatted(Formatting.GRAY))
+    )
+
+    private fun cycleAudioDecoder(button: ButtonWidget) {
+        val values = AudioDecoder.entries.toTypedArray()
+        currentAudioDecoder = values[(currentAudioDecoder.ordinal + 1) % values.size]
+        button.message = Text.literal(currentAudioDecoder.displayName)
+
+        SoundboardAudioSystem.setAudioDecoder(currentAudioDecoder)
+        SoundboardConfig.data.selectedAudioDecoder = currentAudioDecoder
     }
 }

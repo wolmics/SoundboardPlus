@@ -12,11 +12,12 @@ import net.minecraft.client.input.CharInput
 import net.minecraft.client.input.KeyInput
 import net.minecraft.text.Text
 import net.minecraft.util.Formatting
+import net.minecraft.util.Util
 import org.lwjgl.glfw.GLFW
 import org.wolmics.soundboardplus.SoundboardAudioSystem
 import org.wolmics.soundboardplus.config.SoundboardConfig
 import org.wolmics.soundboardplus.config.SoundData
-import org.wolmics.soundboardplus.util.ToastManager
+import org.wolmics.soundboardplus.util.ToastRenderer
 import java.awt.Color
 
 @Suppress("EXPOSED_SUPER_CLASS")
@@ -60,6 +61,8 @@ class ResultListWidget(
         private var renamedName: String = sound.name
         private val elements = mutableListOf<Element>()
         private val selectables = mutableListOf<Selectable>()
+
+        private var cursorIndex: Int = 0
 
         init {
             favBtn = ButtonWidget.builder(
@@ -111,8 +114,20 @@ class ResultListWidget(
             if (!renaming) {
                 context.drawText(textRenderer, name, x + 25, textY, textColor, true)
             } else {
-                val text: Text = Text.literal(renamedName + "_").formatted(Formatting.ITALIC)
+                val blinkVisible = (Util.getMeasuringTimeMs() / 400) % 2 == 0L // faster blink (300ms instead of 500ms)
+
+                val text: Text = Text.literal(renamedName).formatted(Formatting.ITALIC)
                 context.drawText(textRenderer, text, x + 25, textY, textColor, true)
+
+                if (blinkVisible) {
+                    val before = renamedName.substring(0, cursorIndex)
+                    val cursorX = x - 1 + 25 + textRenderer.getWidth(before)
+                    val cursorY1 = textY - 1
+                    val cursorY2 = textY + textRenderer.fontHeight
+
+                    // thick vanilla-style cursor bar, 2px wide
+                    context.fill(cursorX, cursorY1, cursorX + 1, cursorY2, 0xFFFFFFFF.toInt())
+                }
             }
 
             // Buttons
@@ -132,7 +147,11 @@ class ResultListWidget(
             if (playBtn.mouseClicked(click, doubled)) return true
 
             // 1 == right-click
-            renaming = click.button() == 1
+            val wasRenaming = renaming
+            if (click.button() == 1) {
+                renaming = !wasRenaming
+                if (renaming) cursorIndex = renamedName.length
+            }
 
             onEntryMouseDown(sound, click.x.toInt(), click.y.toInt())
 
@@ -143,13 +162,20 @@ class ResultListWidget(
         }
 
         override fun charTyped(event: CharInput): Boolean {
-            if (renaming) renamedName += Char(event.codepoint())
+            if (renaming) {
+                val newChar = Char(event.codepoint())
+                renamedName = renamedName.substring(0, cursorIndex) + newChar + renamedName.substring(cursorIndex)
+                cursorIndex++
+            }
             return super.charTyped(event)
         }
 
         override fun keyPressed(event: KeyInput): Boolean {
             val key = event.key()
-            println(key)
+
+            if (renaming && key == GLFW.GLFW_KEY_ESCAPE) {
+                renaming = false
+            }
 
             if (renaming && key == GLFW.GLFW_KEY_ENTER) {
                 if (sound.name == renamedName) return super.keyPressed(event)
@@ -163,13 +189,26 @@ class ResultListWidget(
                     renaming = false
                     setFocused(false)
 
-                    ToastManager.createToast(Text.literal("Successfully renamed File!").formatted(Formatting.GREEN), 2000)
+                    ToastRenderer.showText(Text.literal("Successfully renamed File!").formatted(Formatting.GREEN), 2000)
                 } else {
-                    ToastManager.createToast(Text.literal("Illegal Characters").formatted(Formatting.RED), 2000)
+                    ToastRenderer.showText(Text.literal("Illegal Characters").formatted(Formatting.RED), 2000)
                 }
             }
 
-            if (renaming && key == GLFW.GLFW_KEY_BACKSPACE) renamedName = renamedName.dropLast(1)
+            // Renaming: Delete char
+            if (renaming && key == GLFW.GLFW_KEY_BACKSPACE && cursorIndex > 0) {
+                renamedName = renamedName.substring(0, cursorIndex - 1) + renamedName.substring(cursorIndex)
+                cursorIndex -= 1
+            }
+
+            // Renaming: Move cursor around
+            if (renaming && (key == GLFW.GLFW_KEY_LEFT || key == GLFW.GLFW_KEY_RIGHT)) {
+                val direction = if (key == GLFW.GLFW_KEY_RIGHT) 1 else -1
+                val newIndex = cursorIndex + direction
+                if (newIndex in 0..renamedName.length) {
+                    cursorIndex = newIndex
+                }
+            }
 
             return super.keyPressed(event)
         }

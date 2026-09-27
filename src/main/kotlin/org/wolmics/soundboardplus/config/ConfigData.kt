@@ -1,6 +1,7 @@
 package org.wolmics.soundboardplus.config
 
 import kotlinx.serialization.Serializable
+import org.wolmics.soundboardplus.AudioDecoder
 
 @Serializable
 data class ConfigData(
@@ -9,6 +10,8 @@ data class ConfigData(
     var playOnlyOne: Boolean = false,
     var showProgressBar: Boolean = true,
     var saveLastCategory: Boolean = true,
+
+    var selectedAudioDecoder: AudioDecoder = AudioDecoder.AUTOMATIC,
 
     var localVolume: Float = 1.0f,
     var playerVolume: Float = 1.0f,

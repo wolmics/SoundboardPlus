@@ -6,12 +6,11 @@ import de.maxhenkel.voicechat.api.audiochannel.ClientStaticAudioChannel
 import de.maxhenkel.voicechat.api.events.ClientVoicechatConnectionEvent
 import de.maxhenkel.voicechat.api.events.MergeClientSoundEvent
 import javazoom.jl.decoder.*
-import kotlinx.atomicfu.locks.withLock
-import net.minecraft.client.MinecraftClient
 import net.minecraft.text.Text
+import net.minecraft.util.Formatting
 import org.wolmics.soundboardplus.config.SoundData
 import org.wolmics.soundboardplus.config.SoundboardConfig
-import org.wolmics.soundboardplus.util.ToastManager
+import org.wolmics.soundboardplus.util.ToastRenderer
 import java.io.BufferedInputStream
 import java.io.File
 import java.nio.file.Files
@@ -19,6 +18,7 @@ import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 import kotlin.math.min
 
 object SoundboardAudioSystem {
@@ -26,6 +26,8 @@ object SoundboardAudioSystem {
     private var api: VoicechatApi? = null
     private var clientApi: VoicechatClientApi? = null
     private var localAudioChannel: ClientStaticAudioChannel? = null
+
+    private var audioDecoder = SoundboardConfig.data.selectedAudioDecoder
 
     private val activeSounds = ConcurrentLinkedQueue<PlayingSound>()
     private const val FRAME_SIZE = 960
@@ -60,6 +62,15 @@ object SoundboardAudioSystem {
             clientApi = null
             localAudioChannel = null
         }
+    }
+
+    fun setAudioDecoder(audioDecoder: AudioDecoder) {
+        stopAll()
+        this.audioDecoder = audioDecoder
+    }
+
+    fun getAudioDecoder(): AudioDecoder {
+        return this.audioDecoder
     }
 
     // Returns playback progress (0.0–1.0) for the named sound, or null if not playing.
@@ -163,11 +174,11 @@ object SoundboardAudioSystem {
     fun playFile(soundData: SoundData) {
         val api = clientApi
         if (api == null) {
-            ToastManager.createToast(Text.literal("§cVoice chat not connected!"), 1500)
+            ToastRenderer.showText(Text.literal("Voice chat not connected!").formatted(Formatting.RED), 1500)
             return
         }
         if (api.isMuted && !SoundboardConfig.data.playWhileMuted) {
-            ToastManager.createToast(Text.literal("§cCannot play soundboard while muted!"), 1500)
+            ToastRenderer.showText(Text.literal("Cannot play soundboard while muted!").formatted(Formatting.RED), 1500)
             return
         }
         if (SoundboardConfig.data.playOnlyOne && activeSounds.isNotEmpty()) {
@@ -184,7 +195,8 @@ object SoundboardAudioSystem {
 
         CompletableFuture.runAsync {
             try {
-                if (shouldStream(file)) {
+            // Checks the selected audio decoder and manages the automatic setting
+            if (audioDecoder == AudioDecoder.JLAYER || (audioDecoder == AudioDecoder.AUTOMATIC && shouldStream(file))) {
                     // streamLoop runs directly here — no second thread needed.
                     sound.streamLoop(file)
                 } else {
@@ -193,9 +205,7 @@ object SoundboardAudioSystem {
                         sound.setSamples(pcm)
                     } else {
                         activeSounds.remove(sound)
-                        MinecraftClient.getInstance().execute {
-                            ToastManager.createToast(Text.literal("§cFailed to decode: ${file.name}"), 2500)
-                        }
+                        ToastRenderer.showText(Text.literal("Failed to decode: ${file.name}!").formatted(Formatting.RED), 2500)
                     }
                 }
             } catch (e: Exception) {
@@ -583,6 +593,12 @@ object SoundboardAudioSystem {
         v = v or (v ushr 8); v = v or (v ushr 16)
         return v + 1
     }
+}
+
+enum class AudioDecoder(val displayName: String) {
+    AUTOMATIC("Automatic"),
+    SIMPLE_VOICECHAT("Simple Voicechat Decoder"),
+    JLAYER("JLayer")
 }
 
 enum class PlaybackState { LOADING, PLAYING, STOPPED }

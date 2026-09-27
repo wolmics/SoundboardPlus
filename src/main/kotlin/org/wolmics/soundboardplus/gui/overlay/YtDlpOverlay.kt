@@ -11,8 +11,8 @@ import net.minecraft.text.Text
 import net.minecraft.util.Util
 import org.wolmics.soundboardplus.SimpleSoundboardClient
 import org.wolmics.soundboardplus.YtDlpManager
-import org.wolmics.soundboardplus.util.ToastManager
 import org.lwjgl.glfw.GLFW
+import org.wolmics.soundboardplus.util.ToastRenderer
 import java.util.concurrent.CompletableFuture
 
 class YtDlpOverlay(ctx: OverlayContext, title: Text) : ScreenOverlay(ctx, overlayWidth = 200, overlayHeight = 90) {
@@ -31,7 +31,7 @@ class YtDlpOverlay(ctx: OverlayContext, title: Text) : ScreenOverlay(ctx, overla
     private var downloadButton = ButtonWidget.builder(Text.literal("Download")) {
         val url = urlField.text.trim()
         if (url.isBlank()) {
-            ToastManager.createToast(Text.literal("Please enter a URL!"), 1500L)
+            ToastRenderer.showText("Please enter a URL!", 1500L)
             return@builder
         }
 
