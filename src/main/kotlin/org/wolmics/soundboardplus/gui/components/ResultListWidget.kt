@@ -17,7 +17,7 @@ import org.lwjgl.glfw.GLFW
 import org.wolmics.soundboardplus.SoundboardAudioSystem
 import org.wolmics.soundboardplus.config.SoundboardConfig
 import org.wolmics.soundboardplus.config.SoundData
-import org.wolmics.soundboardplus.util.ToastManager
+import org.wolmics.soundboardplus.util.ToastRenderer
 import java.awt.Color
 
 @Suppress("EXPOSED_SUPER_CLASS")
@@ -190,9 +190,9 @@ class ResultListWidget(
                     renaming = false
                     setFocused(false)
 
-                    ToastManager.createToast(Component.literal("Successfully renamed File!").withColor(TextColor.GREEN), 2000)
+                    ToastRenderer.showText(Component.literal("Successfully renamed File!").withColor(TextColor.GREEN), 2000)
                 } else {
-                    ToastManager.createToast(Component.literal("Illegal Characters").withColor(TextColor.RED), 2000)
+                    ToastRenderer.showText(Component.literal("Illegal Characters").withColor(TextColor.RED), 2000)
                 }
             }
 

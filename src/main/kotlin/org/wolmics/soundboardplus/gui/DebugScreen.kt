@@ -10,12 +10,12 @@ import net.minecraft.network.chat.Component
 import net.minecraft.network.chat.TextColor
 import net.minecraft.util.Util
 import org.wolmics.soundboardplus.YtDlpManager
-import org.wolmics.soundboardplus.util.ToastManager
 import java.util.concurrent.CompletableFuture
 import org.lwjgl.util.tinyfd.TinyFileDialogs
 import org.wolmics.soundboardplus.AudioDecoder
 import org.wolmics.soundboardplus.SoundboardAudioSystem
 import org.wolmics.soundboardplus.config.SoundboardConfig
+import org.wolmics.soundboardplus.util.ToastRenderer
 
 class DebugScreen(private val parent: Screen?) : Screen(Component.literal("Debug Screen")) {
 
@@ -173,33 +173,25 @@ class DebugScreen(private val parent: Screen?) : Screen(Component.literal("Debug
 
     // --- ffmpeg actions ---
     private fun onFfmpegUpdate() {
-        minecraft.execute {
-            ToastManager.createToast(Component.literal("Updating FFmpeg..."), 3000)
-            CompletableFuture.runAsync {
-                val success = ytDlpManager.updateFfmpeg()
-                minecraft.execute {
-                    if (success) {
-                        ToastManager.createToast(Component.literal("FFmpeg updated successfully"), 3000)
-                    } else {
-                        ToastManager.createToast(Component.literal("Failed to update FFmpeg"), 3000)
-                    }
-                }
+        ToastRenderer.showText("Updating FFmpeg...", 3000)
+        CompletableFuture.runAsync {
+            val success = ytDlpManager.updateFfmpeg()
+            if (success) {
+                ToastRenderer.showText("FFmpeg updated successfully!", 3000)
+            } else {
+                ToastRenderer.showText("Failed to update FFmpeg...", 3000)
             }
         }
     }
 
     private fun onFfmpegUninstall() {
-        minecraft.execute {
-            ToastManager.createToast(Component.literal("Uninstalling FFmpeg..."), 3000)
-            CompletableFuture.runAsync {
-                val success = ytDlpManager.uninstallFfmpeg()
-                minecraft.execute {
-                    if (success) {
-                        ToastManager.createToast(Component.literal("FFmpeg uninstalled successfully"), 3000)
-                    } else {
-                        ToastManager.createToast(Component.literal("Failed to uninstall FFmpeg"), 3000)
-                    }
-                }
+        ToastRenderer.showText("Uninstalling FFmpeg...", 3000)
+        CompletableFuture.runAsync {
+            val success = ytDlpManager.uninstallFfmpeg()
+            if (success) {
+                ToastRenderer.showText("FFmpeg uninstalled successfully!", 3000)
+            } else {
+                ToastRenderer.showText("Failed to uninstall FFmpeg...", 3000)
             }
         }
     }
@@ -210,58 +202,47 @@ class DebugScreen(private val parent: Screen?) : Screen(Component.literal("Debug
             val message = if (valid) {
                 Component.literal("FFmpeg path set successfully!").withColor(TextColor.GREEN)
             } else {
-                Component.literal("Invalid FFmpeg path").withColor(TextColor.RED)
+                Component.literal("Invalid FFmpeg path.").withColor(TextColor.RED)
             }
-            ToastManager.createToast(message, 3000)
+
+            ToastRenderer.showText(message, 3000)
             return@browseAndSetPath true
         }
     }
 
     // --- yt-dlp actions ---
     private fun onYtDlpUpdate() {
-        minecraft.execute {
-            ToastManager.createToast(Component.literal("Updating yt-dlp..."), 3000)
-            CompletableFuture.runAsync {
-                val success = ytDlpManager.updateYtDlp()
-                minecraft.execute {
-                    if (success) {
-                        ToastManager.createToast(Component.literal("yt-dlp updated successfully"), 3000)
-                    } else {
-                        ToastManager.createToast(Component.literal("Failed to update yt-dlp"), 3000)
-                    }
-                }
+        ToastRenderer.showText("Updating yt-dlp...", 3000)
+        CompletableFuture.runAsync {
+            val success = ytDlpManager.updateYtDlp()
+            if (success) {
+                ToastRenderer.showText("yt-dlp updated successfully!", 3000)
+            } else {
+                ToastRenderer.showText("Failed to update yt-dlp...", 3000)
             }
         }
     }
 
     private fun onYtDlpUpdateNightly() {
-        minecraft.execute {
-            ToastManager.createToast(Component.literal("Updating yt-dlp to nightly..."), 3000)
-            CompletableFuture.runAsync {
-                val success = ytDlpManager.updateYtDlpNightly()
-                minecraft.execute {
-                    if (success) {
-                        ToastManager.createToast(Component.literal("yt-dlp nightly updated successfully"), 3000)
-                    } else {
-                        ToastManager.createToast(Component.literal("Failed to update yt-dlp nightly"), 3000)
-                    }
-                }
+        ToastRenderer.showText("Updating yt-dlp to nightly...", 3000)
+        CompletableFuture.runAsync {
+            val success = ytDlpManager.updateYtDlpNightly()
+            if (success) {
+                ToastRenderer.showText("yt-dlp nightly updated successfully!", 3000)
+            } else {
+                ToastRenderer.showText("Failed to update yt-dlp nightly...", 3000)
             }
         }
     }
 
     private fun onYtDlpUninstall() {
-        minecraft.execute {
-            ToastManager.createToast(Component.literal("Uninstalling yt-dlp..."), 3000)
-            CompletableFuture.runAsync {
-                val success = ytDlpManager.uninstallYtDlp()
-                minecraft.execute {
-                    if (success) {
-                        ToastManager.createToast(Component.literal("yt-dlp uninstalled successfully"), 3000)
-                    } else {
-                        ToastManager.createToast(Component.literal("Failed to uninstall yt-dlp"), 3000)
-                    }
-                }
+        ToastRenderer.showText("Uninstalling yt-dlp...", 3000)
+        CompletableFuture.runAsync {
+            val success = ytDlpManager.uninstallYtDlp()
+            if (success) {
+                ToastRenderer.showText("yt-dlp uninstalled successfully!", 3000)
+            } else {
+                ToastRenderer.showText("Failed to uninstall yt-dlp...", 3000)
             }
         }
     }
@@ -269,7 +250,7 @@ class DebugScreen(private val parent: Screen?) : Screen(Component.literal("Debug
     private fun onYtDlpOpenLogs() {
         minecraft.execute {
             Util.getPlatform().openFile(ytDlpManager.logFile)
-            ToastManager.createToast(Component.literal("Opened yt-dlp log file"), 3000)
+            ToastRenderer.showText("Opened yt-dlp log file.", 3000)
         }
     }
 
@@ -281,7 +262,7 @@ class DebugScreen(private val parent: Screen?) : Screen(Component.literal("Debug
             } else {
                 Component.literal("Invalid yt-dlp path").withColor(TextColor.RED)
             }
-            ToastManager.createToast(message, 3000)
+            ToastRenderer.showText(message, 3000)
             return@browseAndSetPath true
         }
     }
@@ -294,14 +275,12 @@ class DebugScreen(private val parent: Screen?) : Screen(Component.literal("Debug
             if (selected == null) return@thenAccept // user cancelled the dialog
 
             val valid = setPath(selected)
-            minecraft.execute {
-                val message = if (valid) {
-                    Component.literal("Path set successfully!").withColor(TextColor.GREEN)
-                } else {
-                    Component.literal("That path is invalid.").withColor(TextColor.RED)
-                }
-                ToastManager.createToast(message, 3000)
+            val message = if (valid) {
+                Component.literal("Path set successfully!").withColor(TextColor.GREEN)
+            } else {
+                Component.literal("That path is invalid.").withColor(TextColor.RED)
             }
+            ToastRenderer.showText(message, 3000)
         }
     }
     // --- Audio Decoder actions ---
